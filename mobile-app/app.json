@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Stack Tracker Pro",
+    "slug": "stack-tracker-pro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0f0f"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.stacktracker.pro",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Stack Tracker Pro uses the camera to scan receipts and photos of your stack for automatic data entry.",
+        "NSPhotoLibraryUsageDescription": "Stack Tracker Pro accesses your photo library to scan receipts and stack photos for automatic data entry.",
+        "NSFaceIDUsageDescription": "Stack Tracker Pro uses Face ID to protect your portfolio data.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f0f0f"
+      },
+      "package": "com.stacktracker.pro",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Stack Tracker Pro accesses your photos to scan receipts for automatic data entry.",
+          "cameraPermission": "Stack Tracker Pro uses the camera to photograph receipts and your stack."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Stack Tracker Pro uses Face ID to secure your portfolio data."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    },
+    "owner": "your-expo-username"
+  }
+}
