@@ -1,9 +1,6 @@
 /**
  * Stack Tracker Pro - React Native App
  * Privacy-First Precious Metals Portfolio Tracker
- * 
- * This is the main App component for iOS/Android deployment.
- * Uses local encrypted storage and connects to our privacy-focused backend.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -45,6 +42,27 @@ const decryptData = async (encrypted, key) => {
   } catch {
     return null;
   }
+};
+
+// Floating Label Input Component
+const FloatingInput = ({ label, value, onChangeText, placeholder, keyboardType, prefix, suffix }) => {
+  return (
+    <View style={styles.floatingContainer}>
+      <Text style={styles.floatingLabel}>{label}</Text>
+      <View style={styles.inputRow}>
+        {prefix && <Text style={styles.inputPrefix}>{prefix}</Text>}
+        <TextInput
+          style={[styles.floatingInput, prefix && { paddingLeft: 4 }]}
+          placeholder={placeholder}
+          placeholderTextColor="#52525b"
+          keyboardType={keyboardType || 'default'}
+          value={value}
+          onChangeText={onChangeText}
+        />
+        {suffix && <Text style={styles.inputSuffix}>{suffix}</Text>}
+      </View>
+    </View>
+  );
 };
 
 export default function App() {
@@ -176,28 +194,34 @@ export default function App() {
     }
   };
 
-  // Fetch historical spot price when date changes
-  const fetchHistoricalSpot = async (date) => {
-    if (!date || date.length < 10) return;
+  // Fetch historical spot price for a specific date and metal
+  const fetchHistoricalSpot = async (date, metal) => {
+    if (!date || date.length < 10) return null;
+    
+    const metalToUse = metal || metalTab;
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/historical-spot?date=${date}&metal=${metalTab}`);
+      const response = await fetch(`${API_BASE_URL}/api/historical-spot?date=${date}&metal=${metalToUse}`);
       const data = await response.json();
       if (data.success && data.price) {
-        setForm(prev => ({ ...prev, spotPrice: data.price.toString() }));
+        return data.price;
       }
     } catch (error) {
-      // Use current spot as fallback
-      const currentSpot = metalTab === 'silver' ? silverSpot : goldSpot;
-      setForm(prev => ({ ...prev, spotPrice: currentSpot.toString() }));
+      console.log('Could not fetch historical spot');
     }
+    
+    // Fallback to current spot
+    return metalToUse === 'gold' ? goldSpot : silverSpot;
   };
 
   // Handle date change - auto-fill spot price
-  const handleDateChange = (date) => {
+  const handleDateChange = async (date) => {
     setForm(prev => ({ ...prev, datePurchased: date }));
     if (date.length === 10) {
-      fetchHistoricalSpot(date);
+      const historicalPrice = await fetchHistoricalSpot(date, metalTab);
+      if (historicalPrice) {
+        setForm(prev => ({ ...prev, spotPrice: historicalPrice.toString() }));
+      }
     }
   };
 
@@ -241,7 +265,20 @@ export default function App() {
 
       if (data.success && data.data) {
         const d = data.data;
+        const extractedMetal = d.metal === 'gold' ? 'gold' : 'silver';
         const newDate = d.datePurchased || '';
+        
+        // Set metal tab first
+        setMetalTab(extractedMetal);
+        
+        // Get the correct historical spot price for the extracted metal and date
+        let spotPrice = '';
+        if (newDate.length === 10) {
+          const historicalPrice = await fetchHistoricalSpot(newDate, extractedMetal);
+          if (historicalPrice) {
+            spotPrice = historicalPrice.toString();
+          }
+        }
         
         setForm({
           productName: d.productName || '',
@@ -252,17 +289,9 @@ export default function App() {
           unitPrice: d.unitPrice?.toString() || '',
           taxes: d.taxes?.toString() || '0',
           shipping: d.shipping?.toString() || '0',
-          spotPrice: d.spotPrice?.toString() || '',
+          spotPrice: spotPrice,
           premium: '0',
         });
-
-        if (d.metal === 'gold') setMetalTab('gold');
-        else setMetalTab('silver');
-
-        // If no spot price was extracted, try to fetch historical
-        if (!d.spotPrice && newDate.length === 10) {
-          fetchHistoricalSpot(newDate);
-        }
 
         setScanStatus('success');
         setScanMessage('Receipt analyzed! Verify and save.');
@@ -317,7 +346,18 @@ export default function App() {
 
       if (data.success && data.data) {
         const d = data.data;
+        const extractedMetal = d.metal === 'gold' ? 'gold' : 'silver';
         const newDate = d.datePurchased || '';
+        
+        setMetalTab(extractedMetal);
+        
+        let spotPrice = '';
+        if (newDate.length === 10) {
+          const historicalPrice = await fetchHistoricalSpot(newDate, extractedMetal);
+          if (historicalPrice) {
+            spotPrice = historicalPrice.toString();
+          }
+        }
         
         setForm({
           productName: d.productName || '',
@@ -328,15 +368,9 @@ export default function App() {
           unitPrice: d.unitPrice?.toString() || '',
           taxes: d.taxes?.toString() || '0',
           shipping: d.shipping?.toString() || '0',
-          spotPrice: d.spotPrice?.toString() || '',
+          spotPrice: spotPrice,
           premium: '0',
         });
-
-        if (d.metal === 'gold') setMetalTab('gold');
-        
-        if (!d.spotPrice && newDate.length === 10) {
-          fetchHistoricalSpot(newDate);
-        }
         
         setScanStatus('success');
         setScanMessage('Photo analyzed!');
@@ -732,98 +766,102 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Form */}
-                <TextInput
-                  style={styles.input}
-                  placeholder="Product Name *"
-                  placeholderTextColor={colors.muted}
+                {/* Form with Floating Labels */}
+                <FloatingInput
+                  label="Product Name *"
                   value={form.productName}
                   onChangeText={v => setForm(p => ({ ...p, productName: v }))}
-                  returnKeyType="next"
+                  placeholder="e.g., American Gold Eagle 1 oz"
                 />
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Dealer"
-                  placeholderTextColor={colors.muted}
+                <FloatingInput
+                  label="Dealer"
                   value={form.source}
                   onChangeText={v => setForm(p => ({ ...p, source: v }))}
-                  returnKeyType="next"
+                  placeholder="e.g., APMEX, JM Bullion"
                 />
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Date (YYYY-MM-DD)"
-                  placeholderTextColor={colors.muted}
+                <FloatingInput
+                  label="Purchase Date"
                   value={form.datePurchased}
                   onChangeText={handleDateChange}
-                  returnKeyType="next"
+                  placeholder="YYYY-MM-DD"
                 />
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="OZT per unit *"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    value={form.ozt}
-                    onChangeText={v => setForm(p => ({ ...p, ozt: v }))}
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Quantity"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="number-pad"
-                    value={form.quantity}
-                    onChangeText={v => setForm(p => ({ ...p, quantity: v }))}
-                  />
+                  <View style={{ flex: 1 }}>
+                    <FloatingInput
+                      label="OZT per unit *"
+                      value={form.ozt}
+                      onChangeText={v => setForm(p => ({ ...p, ozt: v }))}
+                      placeholder="1"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <FloatingInput
+                      label="Quantity"
+                      value={form.quantity}
+                      onChangeText={v => setForm(p => ({ ...p, quantity: v }))}
+                      placeholder="1"
+                      keyboardType="number-pad"
+                    />
+                  </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Unit Price *"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    value={form.unitPrice}
-                    onChangeText={v => setForm(p => ({ ...p, unitPrice: v }))}
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Spot at purchase"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    value={form.spotPrice}
-                    onChangeText={v => setForm(p => ({ ...p, spotPrice: v }))}
-                  />
+                  <View style={{ flex: 1 }}>
+                    <FloatingInput
+                      label="Unit Price *"
+                      value={form.unitPrice}
+                      onChangeText={v => setForm(p => ({ ...p, unitPrice: v }))}
+                      placeholder="0.00"
+                      keyboardType="decimal-pad"
+                      prefix="$"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <FloatingInput
+                      label="Spot at Purchase"
+                      value={form.spotPrice}
+                      onChangeText={v => setForm(p => ({ ...p, spotPrice: v }))}
+                      placeholder="Auto-filled"
+                      keyboardType="decimal-pad"
+                      prefix="$"
+                    />
+                  </View>
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Taxes"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    value={form.taxes}
-                    onChangeText={v => setForm(p => ({ ...p, taxes: v }))}
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Shipping"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    value={form.shipping}
-                    onChangeText={v => setForm(p => ({ ...p, shipping: v }))}
-                  />
+                  <View style={{ flex: 1 }}>
+                    <FloatingInput
+                      label="Taxes"
+                      value={form.taxes}
+                      onChangeText={v => setForm(p => ({ ...p, taxes: v }))}
+                      placeholder="0.00"
+                      keyboardType="decimal-pad"
+                      prefix="$"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <FloatingInput
+                      label="Shipping"
+                      value={form.shipping}
+                      onChangeText={v => setForm(p => ({ ...p, shipping: v }))}
+                      placeholder="0.00"
+                      keyboardType="decimal-pad"
+                      prefix="$"
+                    />
+                  </View>
                 </View>
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Numismatic Premium (per piece)"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
+                <FloatingInput
+                  label="Numismatic Premium (per piece)"
                   value={form.premium}
                   onChangeText={v => setForm(p => ({ ...p, premium: v }))}
+                  placeholder="0.00"
+                  keyboardType="decimal-pad"
+                  prefix="$"
                 />
 
                 <TouchableOpacity style={[styles.button, { backgroundColor: currentColor, marginTop: 16, marginBottom: 40 }]} onPress={savePurchase}>
@@ -1069,6 +1107,42 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     padding: 40,
+  },
+  // Floating Label Styles
+  floatingContainer: {
+    marginBottom: 12,
+  },
+  floatingLabel: {
+    color: '#a1a1aa',
+    fontSize: 12,
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  floatingInput: {
+    flex: 1,
+    padding: 12,
+    paddingLeft: 0,
+    color: '#fff',
+    fontSize: 14,
+  },
+  inputPrefix: {
+    color: '#71717a',
+    fontSize: 14,
+    marginRight: 2,
+  },
+  inputSuffix: {
+    color: '#71717a',
+    fontSize: 14,
+    marginLeft: 4,
   },
   input: {
     backgroundColor: 'rgba(0,0,0,0.3)',
