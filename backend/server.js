@@ -101,9 +101,9 @@ async function fetchLiveSpotPrices() {
     console.error('Failed to fetch spot prices:', error.message);
   }
   
-  // Fallback to current hardcoded prices (Dec 2024)
+  // Fallback to current hardcoded prices (Dec 2025)
   console.log('Using fallback spot prices');
-  spotPriceCache.prices = { gold: 2620, silver: 29.80, platinum: 935, palladium: 915 };
+  spotPriceCache.prices = { gold: 4530, silver: 77, platinum: 2400, palladium: 1850 };
   return spotPriceCache.prices;
 }
 // ============================================
@@ -310,14 +310,26 @@ app.get('/api/historical-spot', (req, res) => {
  * Privacy: Image is processed in memory only, never stored
  */
 app.post('/api/scan-receipt', upload.single('receipt'), async (req, res) => {
+  console.log('📷 Scan request received');
+
   try {
     if (!req.file) {
+      console.log('❌ No file uploaded');
       return res.status(400).json({ error: 'No image provided' });
     }
+
+    // Log file details
+    console.log('📄 File details:', {
+      mimetype: req.file.mimetype,
+      size: `${(req.file.size / 1024).toFixed(2)} KB`,
+      originalname: req.file.originalname
+    });
 
     // Convert buffer to base64 (stays in memory)
     const base64Image = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype || 'image/jpeg';
+
+    console.log('🤖 Calling Claude Vision API...');
 
     // Call Claude Vision API
     const response = await anthropic.messages.create({
@@ -387,6 +399,8 @@ Important:
     // Clear image data from memory immediately
     req.file.buffer = null;
 
+    console.log('✅ Receipt scan successful');
+
     res.json({
       success: true,
       ...extractedData,
@@ -398,11 +412,14 @@ Important:
     if (req.file) {
       req.file.buffer = null;
     }
-    
-    console.error('Receipt scan error:', error);
-    res.status(500).json({ 
+
+    console.error('❌ Receipt scan error:', error.message);
+    console.error('Stack trace:', error.stack);
+    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+
+    res.status(500).json({
       error: 'Failed to process receipt',
-      details: error.message 
+      details: error.message
     });
   }
 });
