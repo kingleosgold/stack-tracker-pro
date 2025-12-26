@@ -112,13 +112,22 @@ async function fetchLiveSpotPrices() {
 
 async function loadHistoricalData() {
   try {
-    console.log('Loading historical price data...');
-    
+    console.log('📊 Loading historical price data...');
+
     // Fetch historical gold prices from freegoldapi
+    console.log('🔍 Fetching gold history from freegoldapi.com...');
     const historyResponse = await fetch('https://freegoldapi.com/api/XAU/USD/history?days=1095'); // ~3 years
+    console.log('📥 Gold history response status:', historyResponse.status);
+
     if (historyResponse.ok) {
       const historyData = await historyResponse.json();
-      
+      console.log('📄 Gold history data structure:', {
+        hasHistory: !!historyData.history,
+        isArray: Array.isArray(historyData.history),
+        length: historyData.history?.length,
+        sampleItem: historyData.history?.[0]
+      });
+
       if (historyData.history && Array.isArray(historyData.history)) {
         historyData.history.forEach(item => {
           const date = item.date?.split('T')[0]; // YYYY-MM-DD
@@ -126,15 +135,34 @@ async function loadHistoricalData() {
             historicalData.gold[date] = item.price;
           }
         });
-        console.log(`Loaded ${Object.keys(historicalData.gold).length} historical gold prices`);
+        console.log(`✅ Loaded ${Object.keys(historicalData.gold).length} historical gold prices`);
+
+        // Log sample prices to verify
+        const sampleDates = ['2023-09-01', '2023-09-15', '2023-09-30'];
+        sampleDates.forEach(d => {
+          if (historicalData.gold[d]) {
+            console.log(`   ${d}: $${historicalData.gold[d]}`);
+          }
+        });
+      } else {
+        console.log('⚠️ Invalid gold history data structure, using fallback');
+        loadFallbackHistoricalData();
+        return;
       }
+    } else {
+      console.log('❌ Failed to fetch gold history, using fallback');
+      loadFallbackHistoricalData();
+      return;
     }
-    
+
     // Fetch gold/silver ratio history for silver prices
+    console.log('🔍 Fetching gold/silver ratio history...');
     const ratioResponse = await fetch('https://freegoldapi.com/api/XAU/XAG/history?days=1095');
+    console.log('📥 Ratio history response status:', ratioResponse.status);
+
     if (ratioResponse.ok) {
       const ratioData = await ratioResponse.json();
-      
+
       if (ratioData.history && Array.isArray(ratioData.history)) {
         ratioData.history.forEach(item => {
           const date = item.date?.split('T')[0];
@@ -147,13 +175,16 @@ async function loadHistoricalData() {
             }
           }
         });
-        console.log(`Loaded ${Object.keys(historicalData.silver).length} historical silver prices`);
+        console.log(`✅ Loaded ${Object.keys(historicalData.silver).length} historical silver prices`);
+      } else {
+        console.log('⚠️ Invalid ratio data, silver prices will be limited');
       }
     }
-    
+
     historicalData.loaded = true;
   } catch (error) {
-    console.error('Failed to load historical data:', error.message);
+    console.error('❌ Failed to load historical data:', error.message);
+    console.error('Stack trace:', error.stack);
     // Use fallback monthly averages
     loadFallbackHistoricalData();
   }
@@ -249,26 +280,30 @@ app.get('/api/spot-prices', async (req, res) => {
 app.get('/api/historical-spot', (req, res) => {
   try {
     const { date, metal = 'gold' } = req.query;
-    
+
+    console.log(`📅 Historical spot lookup: ${date} for ${metal}`);
+
     if (!date) {
       return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
     }
-    
+
     // Normalize date format
     const normalizedDate = date.trim();
-    
+
     // Try exact date first
     let price = historicalData[metal]?.[normalizedDate];
-    
+    console.log(`   Exact match for ${normalizedDate}: ${price ? '$' + price : 'not found'}`);
+
     // If not found, try to find nearest date
     if (!price) {
       const targetDate = new Date(normalizedDate);
       const dates = Object.keys(historicalData[metal] || {}).sort();
-      
+      console.log(`   Total dates available: ${dates.length}`);
+
       // Find closest date
       let closestDate = null;
       let minDiff = Infinity;
-      
+
       for (const d of dates) {
         const diff = Math.abs(new Date(d) - targetDate);
         if (diff < minDiff) {
@@ -276,31 +311,35 @@ app.get('/api/historical-spot', (req, res) => {
           closestDate = d;
         }
       }
-      
+
       if (closestDate && minDiff < 7 * 24 * 60 * 60 * 1000) { // Within 7 days
         price = historicalData[metal][closestDate];
+        console.log(`   Using nearest date ${closestDate}: $${price} (${Math.floor(minDiff / (24 * 60 * 60 * 1000))} days away)`);
       }
     }
-    
+
     if (price) {
-      res.json({ 
+      res.json({
         date: normalizedDate,
         metal,
         price: Math.round(price * 100) / 100,
         source: 'historical',
+        success: true
       });
     } else {
       // Return current spot as fallback
+      console.log(`   No historical data found, using current spot: $${spotPriceCache.prices[metal]}`);
       res.json({
         date: normalizedDate,
         metal,
         price: spotPriceCache.prices[metal] || 0,
         source: 'current-fallback',
         note: 'Historical price not available, using current spot',
+        success: true
       });
     }
   } catch (error) {
-    console.error('Historical spot error:', error);
+    console.error('❌ Historical spot error:', error);
     res.status(500).json({ error: 'Failed to lookup historical price' });
   }
 });

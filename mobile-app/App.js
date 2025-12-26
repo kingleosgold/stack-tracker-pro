@@ -216,6 +216,11 @@ export default function App() {
     muted: '#71717a',
   };
 
+  // Helper function to format currency with commas
+  const formatCurrency = (value, decimals = 2) => {
+    return value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  };
+
   // ============================================
   // CALCULATIONS
   // ============================================
@@ -781,11 +786,11 @@ export default function App() {
               <View style={styles.divider} />
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Avg Silver Cost</Text>
-                <Text style={styles.statRowValue}>${avgSilverCostPerOz.toFixed(2)}/oz</Text>
+                <Text style={styles.statRowValue}>${formatCurrency(avgSilverCostPerOz)}/oz</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Avg Gold Cost</Text>
-                <Text style={styles.statRowValue}>${avgGoldCostPerOz.toFixed(2)}/oz</Text>
+                <Text style={styles.statRowValue}>${formatCurrency(avgGoldCostPerOz)}/oz</Text>
               </View>
             </View>
 
@@ -807,11 +812,11 @@ export default function App() {
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1, backgroundColor: `${colors.silver}22`, padding: 16, borderRadius: 12 }}>
                   <Text style={{ color: colors.silver, fontSize: 12 }}>🥈 Silver</Text>
-                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${silverSpot.toFixed(2)}</Text>
+                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(silverSpot)}</Text>
                 </View>
                 <View style={{ flex: 1, backgroundColor: `${colors.gold}22`, padding: 16, borderRadius: 12 }}>
                   <Text style={{ color: colors.gold, fontSize: 12 }}>🥇 Gold</Text>
-                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${goldSpot.toFixed(2)}</Text>
+                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(goldSpot)}</Text>
                 </View>
               </View>
               <Text style={{ color: colors.muted, fontSize: 10, textAlign: 'center', marginTop: 8 }}>Source: {priceSource}</Text>
@@ -845,11 +850,11 @@ export default function App() {
               <TouchableOpacity key={item.id} style={styles.itemCard} onPress={() => editItem(item, metalTab)} onLongPress={() => deleteItem(item.id, metalTab)}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemTitle}>{item.productName}</Text>
-                  <Text style={styles.itemSubtitle}>{item.quantity}x @ ${item.unitPrice.toLocaleString()} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
-                  <Text style={[styles.itemSubtitle, { color: colors.gold }]}>Premium: ${(item.premium * item.quantity).toFixed(2)}</Text>
+                  <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
+                  <Text style={[styles.itemSubtitle, { color: colors.gold }]}>Premium: ${formatCurrency(item.premium * item.quantity)}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.itemValue, { color: currentColor }]}>${(item.ozt * item.quantity * spot).toFixed(2)}</Text>
+                  <Text style={[styles.itemValue, { color: currentColor }]}>${formatCurrency(item.ozt * item.quantity * spot)}</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
                 </View>
               </TouchableOpacity>
@@ -880,12 +885,12 @@ export default function App() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>📊 Break-Even Analysis</Text>
               <View style={{ backgroundColor: `${colors.silver}22`, padding: 12, borderRadius: 8, marginBottom: 8 }}>
-                <Text style={{ color: colors.silver }}>Silver: ${silverBreakeven.toFixed(2)}/oz needed</Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>{silverSpot >= silverBreakeven ? '✅ Profitable!' : `Need +${(silverBreakeven - silverSpot).toFixed(2)}`}</Text>
+                <Text style={{ color: colors.silver }}>Silver: ${formatCurrency(silverBreakeven)}/oz needed</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>{silverSpot >= silverBreakeven ? '✅ Profitable!' : `Need +$${formatCurrency(silverBreakeven - silverSpot)}`}</Text>
               </View>
               <View style={{ backgroundColor: `${colors.gold}22`, padding: 12, borderRadius: 8 }}>
-                <Text style={{ color: colors.gold }}>Gold: ${goldBreakeven.toFixed(2)}/oz needed</Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>{goldSpot >= goldBreakeven ? '✅ Profitable!' : `Need +${(goldBreakeven - goldSpot).toFixed(2)}`}</Text>
+                <Text style={{ color: colors.gold }}>Gold: ${formatCurrency(goldBreakeven)}/oz needed</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>{goldSpot >= goldBreakeven ? '✅ Profitable!' : `Need +$${formatCurrency(goldBreakeven - goldSpot)}`}</Text>
               </View>
             </View>
 
@@ -1003,7 +1008,7 @@ export default function App() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <View style={{ flex: 1 }}><FloatingInput label="Per Unit" value={form.premium} onChangeText={v => setForm(p => ({ ...p, premium: v }))} keyboardType="decimal-pad" prefix="$" /></View>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Total: ${(parseFloat(form.premium || 0) * parseInt(form.quantity || 1)).toFixed(2)}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Total: ${formatCurrency(parseFloat(form.premium || 0) * parseInt(form.quantity || 1))}</Text>
             </View>
           </View>
         </View>
@@ -1083,8 +1088,8 @@ export default function App() {
         </View>
 
         <View style={[styles.card, { backgroundColor: `${colors.success}22` }]}>
-          <Text style={{ color: colors.success }}>Melt Value @ ${silverSpot.toFixed(2)}/oz</Text>
-          <Text style={{ color: colors.text, fontSize: 36, fontWeight: '700' }}>${junkMeltValue.toFixed(2)}</Text>
+          <Text style={{ color: colors.success }}>Melt Value @ ${formatCurrency(silverSpot)}/oz</Text>
+          <Text style={{ color: colors.text, fontSize: 36, fontWeight: '700' }}>${formatCurrency(junkMeltValue)}</Text>
         </View>
 
         <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 8 }}>
@@ -1161,9 +1166,16 @@ const styles = StyleSheet.create({
   inputPrefix: { color: '#71717a', fontSize: 14, marginRight: 2 },
 
   // Modal styles - improved
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'flex-start', paddingTop: Platform.OS === 'ios' ? 60 : 40 },
-  modalKeyboardView: { flex: 1 },
-  modalContent: { backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, flex: 1, maxHeight: '95%' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'flex-start', paddingTop: Platform.OS === 'ios' ? 60 : 40 },
+  modalKeyboardView: { flex: 1, backgroundColor: '#1a1a2e' },
+  modalContent: {
+    backgroundColor: '#1a1a2e',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    flex: 1,
+    height: '100%'
+  },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: '700' },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 22 },
