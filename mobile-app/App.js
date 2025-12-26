@@ -21,6 +21,9 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  Keyboard,
+  TouchableWithoutFeedback,
+  KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,13 +31,11 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-// Configuration
-const API_BASE_URL = 'https://api.stacktracker.app';
+// Configuration - Railway backend URL
+const API_BASE_URL = 'https://stack-tracker-pro-production.up.railway.app';
 
 // Encryption helper (use react-native-aes-crypto in production)
 const encryptData = async (data, key) => {
-  // In production, use proper AES-256 encryption
-  // For now, base64 encode as placeholder
   return btoa(JSON.stringify(data));
 };
 
@@ -92,7 +93,6 @@ export default function App() {
         loadData();
       }
     } else {
-      // No biometrics, allow access
       setIsAuthenticated(true);
       loadData();
     }
@@ -115,7 +115,6 @@ export default function App() {
       if (silverS) setSilverSpot(parseFloat(silverS));
       if (goldS) setGoldSpot(parseFloat(goldS));
 
-      // Fetch latest spot prices
       fetchSpotPrices();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -173,8 +172,32 @@ export default function App() {
         }
       }
     } catch (error) {
-      // Use cached prices if offline
       console.log('Using cached spot prices');
+    }
+  };
+
+  // Fetch historical spot price when date changes
+  const fetchHistoricalSpot = async (date) => {
+    if (!date || date.length < 10) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/historical-spot?date=${date}&metal=${metalTab}`);
+      const data = await response.json();
+      if (data.success && data.price) {
+        setForm(prev => ({ ...prev, spotPrice: data.price.toString() }));
+      }
+    } catch (error) {
+      // Use current spot as fallback
+      const currentSpot = metalTab === 'silver' ? silverSpot : goldSpot;
+      setForm(prev => ({ ...prev, spotPrice: currentSpot.toString() }));
+    }
+  };
+
+  // Handle date change - auto-fill spot price
+  const handleDateChange = (date) => {
+    setForm(prev => ({ ...prev, datePurchased: date }));
+    if (date.length === 10) {
+      fetchHistoricalSpot(date);
     }
   };
 
@@ -188,7 +211,7 @@ export default function App() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
       base64: true,
     });
@@ -218,10 +241,12 @@ export default function App() {
 
       if (data.success && data.data) {
         const d = data.data;
+        const newDate = d.datePurchased || '';
+        
         setForm({
           productName: d.productName || '',
           source: d.source || '',
-          datePurchased: d.datePurchased || '',
+          datePurchased: newDate,
           ozt: d.ozt?.toString() || '',
           quantity: d.quantity?.toString() || '1',
           unitPrice: d.unitPrice?.toString() || '',
@@ -233,6 +258,11 @@ export default function App() {
 
         if (d.metal === 'gold') setMetalTab('gold');
         else setMetalTab('silver');
+
+        // If no spot price was extracted, try to fetch historical
+        if (!d.spotPrice && newDate.length === 10) {
+          fetchHistoricalSpot(newDate);
+        }
 
         setScanStatus('success');
         setScanMessage('Receipt analyzed! Verify and save.');
@@ -267,7 +297,6 @@ export default function App() {
 
     if (result.canceled) return;
 
-    // Same processing as scanReceipt
     setScanStatus('scanning');
     setScanMessage('Analyzing photo...');
 
@@ -288,10 +317,12 @@ export default function App() {
 
       if (data.success && data.data) {
         const d = data.data;
+        const newDate = d.datePurchased || '';
+        
         setForm({
           productName: d.productName || '',
           source: d.source || '',
-          datePurchased: d.datePurchased || '',
+          datePurchased: newDate,
           ozt: d.ozt?.toString() || '',
           quantity: d.quantity?.toString() || '1',
           unitPrice: d.unitPrice?.toString() || '',
@@ -302,6 +333,11 @@ export default function App() {
         });
 
         if (d.metal === 'gold') setMetalTab('gold');
+        
+        if (!d.spotPrice && newDate.length === 10) {
+          fetchHistoricalSpot(newDate);
+        }
+        
         setScanStatus('success');
         setScanMessage('Photo analyzed!');
       } else {
@@ -321,6 +357,8 @@ export default function App() {
 
   // Save purchase
   const savePurchase = () => {
+    Keyboard.dismiss();
+    
     if (!form.productName || !form.unitPrice) {
       Alert.alert('Required Fields', 'Please enter product name and unit price.');
       return;
@@ -498,46 +536,47 @@ export default function App() {
             </View>
           </View>
           <TouchableOpacity style={styles.privacyBadge} onPress={() => setShowPrivacyModal(true)}>
-            <Text style={{ color: colors.success, fontSize: 12 }}>🔒 Private</Text>
+            <Text style={{ color: colors.success, fontSize: 11 }}>🔒 Private</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Tabs */}
+        {/* Tab Bar */}
         <View style={styles.tabs}>
-          {['portfolio', 'alerts', 'settings'].map(t => (
+          {['Portfolio', 'Alerts', 'Settings'].map(t => (
             <TouchableOpacity
               key={t}
-              style={[styles.tab, tab === t && styles.tabActive]}
-              onPress={() => setTab(t)}
+              style={[styles.tab, tab === t.toLowerCase() && styles.tabActive]}
+              onPress={() => setTab(t.toLowerCase())}
             >
-              <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-                {t === 'portfolio' ? '📊' : t === 'alerts' ? '🔔' : '⚙️'} {t.charAt(0).toUpperCase() + t.slice(1)}
+              <Text style={[styles.tabText, tab === t.toLowerCase() && styles.tabTextActive]}>
+                {t === 'Portfolio' ? '📊' : t === 'Alerts' ? '🔔' : '⚙️'} {t}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      {/* Main Content */}
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         {tab === 'portfolio' && (
           <>
-            {/* Metal Toggle */}
+            {/* Metal Tabs */}
             <View style={styles.metalTabs}>
               <TouchableOpacity
-                style={[styles.metalTab, metalTab === 'silver' && { borderColor: colors.silver, backgroundColor: `${colors.silver}22` }]}
+                style={[styles.metalTab, { borderColor: metalTab === 'silver' ? colors.silver : 'rgba(255,255,255,0.1)', backgroundColor: metalTab === 'silver' ? `${colors.silver}22` : 'transparent' }]}
                 onPress={() => setMetalTab('silver')}
               >
                 <Text style={{ color: metalTab === 'silver' ? colors.silver : colors.muted, fontWeight: '600' }}>🥈 Silver</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.metalTab, metalTab === 'gold' && { borderColor: colors.gold, backgroundColor: `${colors.gold}22` }]}
+                style={[styles.metalTab, { borderColor: metalTab === 'gold' ? colors.gold : 'rgba(255,255,255,0.1)', backgroundColor: metalTab === 'gold' ? `${colors.gold}22` : 'transparent' }]}
                 onPress={() => setMetalTab('gold')}
               >
                 <Text style={{ color: metalTab === 'gold' ? colors.gold : colors.muted, fontWeight: '600' }}>🥇 Gold</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Stats Card */}
+            {/* Portfolio Summary */}
             <View style={styles.card}>
               <View style={styles.statsRow}>
                 <View style={styles.stat}>
@@ -555,267 +594,245 @@ export default function App() {
                   <Text style={styles.statLabel}>Gain/Loss</Text>
                 </View>
               </View>
-
               <View style={styles.divider} />
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Spot Price</Text>
                 <Text style={styles.statRowValue}>${spot.toFixed(2)}/oz</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={styles.statRowLabel}>Melt Value</Text>
-                <Text style={styles.statRowValue}>${meltValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.statRowLabel}>Cost Basis</Text>
+                <Text style={styles.statRowValue}>${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
               </View>
             </View>
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              <TouchableOpacity style={[styles.button, { backgroundColor: currentColor, flex: 1 }]} onPress={() => setShowAddModal(true)}>
+              <TouchableOpacity style={[styles.button, { backgroundColor: currentColor, flex: 1 }]} onPress={() => { resetForm(); setShowAddModal(true); }}>
                 <Text style={{ color: '#000', fontWeight: '600' }}>+ Add Purchase</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.buttonOutline, { flex: 0.5 }]} onPress={fetchSpotPrices}>
-                <Text style={{ color: '#fff' }}>🔄</Text>
+                <Text style={{ color: colors.text }}>🔄</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.buttonOutline, { flex: 0.5 }]} onPress={exportCSV}>
+                <Text style={{ color: colors.text }}>📤</Text>
               </TouchableOpacity>
             </View>
 
             {/* Items List */}
             {items.map(item => (
-              <View key={item.id} style={styles.itemCard}>
+              <TouchableOpacity key={item.id} style={styles.itemCard} onPress={() => editItem(item)} onLongPress={() => deleteItem(item.id)}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemTitle}>{item.productName}</Text>
                   <Text style={styles.itemSubtitle}>
-                    {item.quantity}x @ ${item.unitPrice} • {item.ozt * item.quantity} oz • {item.source}
+                    {item.quantity}x @ ${item.unitPrice.toFixed(2)} • {(item.ozt * item.quantity).toFixed(2)} oz • {item.source || 'Unknown'}
                   </Text>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.itemValue, { color: currentColor }]}>
-                    ${((item.ozt * item.quantity * spot) + (item.premium * item.quantity)).toFixed(2)}
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <TouchableOpacity onPress={() => editItem(item)}>
-                      <Text>✏️</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => deleteItem(item.id)}>
-                      <Text>🗑️</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
+                <Text style={[styles.itemValue, { color: currentColor }]}>
+                  ${((item.ozt * item.quantity * spot) + (item.premium * item.quantity)).toFixed(2)}
+                </Text>
+              </TouchableOpacity>
             ))}
 
             {items.length === 0 && (
               <View style={styles.emptyState}>
                 <Text style={{ fontSize: 48, marginBottom: 16 }}>🪙</Text>
                 <Text style={{ color: colors.muted }}>No {metalTab} holdings yet</Text>
-                <Text style={{ color: colors.muted, fontSize: 13, marginTop: 8 }}>Tap "Add Purchase" to start</Text>
+                <Text style={{ color: colors.muted, fontSize: 12, marginTop: 8 }}>Tap "+ Add Purchase" to start</Text>
               </View>
             )}
           </>
         )}
 
+        {tab === 'alerts' && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>🔔 Price Alerts</Text>
+            <Text style={styles.cardText}>Set alerts to get notified when spot prices reach your target.</Text>
+            <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver }]}>
+              <Text style={{ color: '#000', fontWeight: '600' }}>+ Add Alert</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {tab === 'settings' && (
           <>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>🔒 Privacy & Security</Text>
-              <Text style={styles.cardText}>
-                Your data is stored locally on this device with AES-256 encryption. Receipt images are processed in memory and never stored.
-              </Text>
-              <TouchableOpacity style={styles.buttonOutline} onPress={() => setShowPrivacyModal(true)}>
-                <Text style={{ color: '#fff' }}>View Privacy Policy</Text>
+              <Text style={styles.cardTitle}>⚙️ Settings</Text>
+              <TouchableOpacity style={styles.statRow} onPress={exportCSV}>
+                <Text style={{ color: colors.text }}>📤 Export Portfolio (CSV)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.statRow} onPress={() => setShowPrivacyModal(true)}>
+                <Text style={{ color: colors.text }}>🔒 Privacy Info</Text>
               </TouchableOpacity>
             </View>
-
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>📥 Export Data</Text>
-              <Text style={styles.cardText}>
-                Download your complete portfolio as a CSV file.
-              </Text>
-              <TouchableOpacity style={[styles.button, { backgroundColor: currentColor }]} onPress={exportCSV}>
-                <Text style={{ color: '#000', fontWeight: '600' }}>Export to CSV</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>⚠️ Danger Zone</Text>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: colors.error }]}
-                onPress={() => {
-                  Alert.alert(
-                    'Delete All Data',
-                    'This will permanently delete all your portfolio data. This cannot be undone.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Delete Everything',
-                        style: 'destructive',
-                        onPress: async () => {
-                          await AsyncStorage.clear();
-                          setSilverItems([]);
-                          setGoldItems([]);
-                          setAlerts([]);
-                        },
-                      },
-                    ]
-                  );
-                }}
-              >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Delete All Data</Text>
-              </TouchableOpacity>
+              <Text style={styles.cardTitle}>About</Text>
+              <Text style={styles.cardText}>Stack Tracker Pro v1.0.0</Text>
+              <Text style={styles.cardText}>Privacy-first precious metals tracking. Your data stays on your device.</Text>
             </View>
           </>
         )}
       </ScrollView>
 
-      {/* Add Purchase Modal */}
+      {/* Add/Edit Modal */}
       <Modal visible={showAddModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editingItem ? 'Edit' : 'Add'} Purchase</Text>
-              <TouchableOpacity onPress={() => { resetForm(); setShowAddModal(false); }}>
-                <Text style={{ color: '#fff', fontSize: 24 }}>×</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Scan Status */}
-              {scanStatus && (
-                <View style={[styles.scanStatus, { backgroundColor: scanStatus === 'success' ? `${colors.success}33` : scanStatus === 'error' ? `${colors.error}33` : '#eab30833' }]}>
-                  <Text style={{ color: scanStatus === 'success' ? colors.success : scanStatus === 'error' ? colors.error : '#eab308' }}>
-                    {scanStatus === 'scanning' ? '⏳' : scanStatus === 'success' ? '✅' : '❌'} {scanMessage}
-                  </Text>
-                </View>
-              )}
-
-              {/* Receipt Scanner */}
-              <View style={[styles.card, { backgroundColor: 'rgba(148,163,184,0.1)' }]}>
-                <Text style={{ fontWeight: '600', marginBottom: 12 }}>📷 AI Receipt Scanner</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: currentColor }]} onPress={scanReceipt}>
-                    <Text style={{ color: '#000', fontWeight: '600' }}>📁 Gallery</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.buttonOutline, { flex: 1 }]} onPress={takePhoto}>
-                    <Text style={{ color: '#fff' }}>📸 Camera</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={{ color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-                  🔒 Images processed in memory only
-                </Text>
-              </View>
-
-              {/* Metal Toggle */}
-              <View style={styles.metalTabs}>
-                <TouchableOpacity
-                  style={[styles.metalTab, metalTab === 'silver' && { borderColor: colors.silver, backgroundColor: `${colors.silver}22` }]}
-                  onPress={() => setMetalTab('silver')}
-                >
-                  <Text style={{ color: metalTab === 'silver' ? colors.silver : colors.muted }}>🥈 Silver</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.metalTab, metalTab === 'gold' && { borderColor: colors.gold, backgroundColor: `${colors.gold}22` }]}
-                  onPress={() => setMetalTab('gold')}
-                >
-                  <Text style={{ color: metalTab === 'gold' ? colors.gold : colors.muted }}>🥇 Gold</Text>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{editingItem ? 'Edit' : 'Add'} Purchase</Text>
+                <TouchableOpacity onPress={() => { resetForm(); setShowAddModal(false); }}>
+                  <Text style={{ color: '#fff', fontSize: 24 }}>×</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Form */}
-              <TextInput
-                style={styles.input}
-                placeholder="Product Name *"
-                placeholderTextColor={colors.muted}
-                value={form.productName}
-                onChangeText={v => setForm(p => ({ ...p, productName: v }))}
-              />
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                {/* Scan Status */}
+                {scanStatus && (
+                  <View style={[styles.scanStatus, { 
+                    backgroundColor: scanStatus === 'success' ? `${colors.success}22` : scanStatus === 'error' ? `${colors.error}22` : `${colors.gold}22`,
+                    borderWidth: 1,
+                    borderColor: scanStatus === 'success' ? colors.success : scanStatus === 'error' ? colors.error : colors.gold,
+                  }]}>
+                    <Text style={{ color: scanStatus === 'success' ? colors.success : scanStatus === 'error' ? colors.error : colors.gold }}>
+                      {scanStatus === 'scanning' ? '⏳' : scanStatus === 'success' ? '✅' : '❌'} {scanMessage}
+                    </Text>
+                  </View>
+                )}
 
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {/* AI Scanner */}
+                <View style={[styles.card, { backgroundColor: 'rgba(148,163,184,0.1)' }]}>
+                  <Text style={{ color: colors.text, fontWeight: '600', marginBottom: 12 }}>📷 AI Receipt Scanner</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: colors.silver }]} onPress={scanReceipt}>
+                      <Text style={{ color: '#000' }}>🖼 Gallery</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.buttonOutline, { flex: 1 }]} onPress={takePhoto}>
+                      <Text style={{ color: colors.text }}>📸 Camera</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>🔒 Images processed in memory only</Text>
+                </View>
+
+                {/* Metal Toggle */}
+                <View style={styles.metalTabs}>
+                  <TouchableOpacity
+                    style={[styles.metalTab, { borderColor: metalTab === 'silver' ? colors.silver : 'rgba(255,255,255,0.1)', backgroundColor: metalTab === 'silver' ? `${colors.silver}22` : 'transparent' }]}
+                    onPress={() => setMetalTab('silver')}
+                  >
+                    <Text style={{ color: metalTab === 'silver' ? colors.silver : colors.muted, fontWeight: '600' }}>🥈 Silver</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.metalTab, { borderColor: metalTab === 'gold' ? colors.gold : 'rgba(255,255,255,0.1)', backgroundColor: metalTab === 'gold' ? `${colors.gold}22` : 'transparent' }]}
+                    onPress={() => setMetalTab('gold')}
+                  >
+                    <Text style={{ color: metalTab === 'gold' ? colors.gold : colors.muted, fontWeight: '600' }}>🥇 Gold</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Form */}
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={styles.input}
+                  placeholder="Product Name *"
+                  placeholderTextColor={colors.muted}
+                  value={form.productName}
+                  onChangeText={v => setForm(p => ({ ...p, productName: v }))}
+                  returnKeyType="next"
+                />
+
+                <TextInput
+                  style={styles.input}
                   placeholder="Dealer"
                   placeholderTextColor={colors.muted}
                   value={form.source}
                   onChangeText={v => setForm(p => ({ ...p, source: v }))}
+                  returnKeyType="next"
                 />
+
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={styles.input}
                   placeholder="Date (YYYY-MM-DD)"
                   placeholderTextColor={colors.muted}
                   value={form.datePurchased}
-                  onChangeText={v => setForm(p => ({ ...p, datePurchased: v }))}
+                  onChangeText={handleDateChange}
+                  returnKeyType="next"
                 />
-              </View>
 
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="OZT per unit *"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    value={form.ozt}
+                    onChangeText={v => setForm(p => ({ ...p, ozt: v }))}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Quantity"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="number-pad"
+                    value={form.quantity}
+                    onChangeText={v => setForm(p => ({ ...p, quantity: v }))}
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Unit Price *"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    value={form.unitPrice}
+                    onChangeText={v => setForm(p => ({ ...p, unitPrice: v }))}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Spot at purchase"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    value={form.spotPrice}
+                    onChangeText={v => setForm(p => ({ ...p, spotPrice: v }))}
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Taxes"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    value={form.taxes}
+                    onChangeText={v => setForm(p => ({ ...p, taxes: v }))}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="Shipping"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    value={form.shipping}
+                    onChangeText={v => setForm(p => ({ ...p, shipping: v }))}
+                  />
+                </View>
+
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="OZT per unit *"
+                  style={styles.input}
+                  placeholder="Numismatic Premium (per piece)"
                   placeholderTextColor={colors.muted}
                   keyboardType="decimal-pad"
-                  value={form.ozt}
-                  onChangeText={v => setForm(p => ({ ...p, ozt: v }))}
+                  value={form.premium}
+                  onChangeText={v => setForm(p => ({ ...p, premium: v }))}
                 />
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Quantity"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="number-pad"
-                  value={form.quantity}
-                  onChangeText={v => setForm(p => ({ ...p, quantity: v }))}
-                />
-              </View>
 
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Unit Price *"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
-                  value={form.unitPrice}
-                  onChangeText={v => setForm(p => ({ ...p, unitPrice: v }))}
-                />
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Spot at purchase"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
-                  value={form.spotPrice}
-                  onChangeText={v => setForm(p => ({ ...p, spotPrice: v }))}
-                />
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Taxes"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
-                  value={form.taxes}
-                  onChangeText={v => setForm(p => ({ ...p, taxes: v }))}
-                />
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Shipping"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
-                  value={form.shipping}
-                  onChangeText={v => setForm(p => ({ ...p, shipping: v }))}
-                />
-              </View>
-
-              <TextInput
-                style={styles.input}
-                placeholder="Numismatic Premium (per piece)"
-                placeholderTextColor={colors.muted}
-                keyboardType="decimal-pad"
-                value={form.premium}
-                onChangeText={v => setForm(p => ({ ...p, premium: v }))}
-              />
-
-              <TouchableOpacity style={[styles.button, { backgroundColor: currentColor, marginTop: 16 }]} onPress={savePurchase}>
-                <Text style={{ color: '#000', fontWeight: '600' }}>{editingItem ? 'Update' : 'Add'} Purchase</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
+                <TouchableOpacity style={[styles.button, { backgroundColor: currentColor, marginTop: 16, marginBottom: 40 }]} onPress={savePurchase}>
+                  <Text style={{ color: '#000', fontWeight: '600' }}>{editingItem ? 'Update' : 'Add'} Purchase</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Privacy Modal */}
