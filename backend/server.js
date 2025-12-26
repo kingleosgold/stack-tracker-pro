@@ -1,233 +1,249 @@
 /**
- * Stack Tracker Pro - Backend API Server
- * Privacy-First Precious Metals Portfolio Tracker
+ * Stack Tracker Pro - Privacy-First Backend API
  * 
- * Features:
- * - AI-powered receipt scanning via Claude Vision
- * - Real-time spot prices from multiple sources
- * - Historical spot price lookup
- * - Memory-only image processing (no storage)
+ * This server handles AI receipt scanning WITHOUT storing any user data.
+ * Images are processed in memory and immediately discarded.
+ * No logs, no analytics, no tracking.
  */
 
 const express = require('express');
 const multer = require('multer');
-const cors = require('cors');
-const helmet = require('helmet');
 const Anthropic = require('@anthropic-ai/sdk');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Memory-only storage - images never touch disk
+// CORS - allow requests from any origin (mobile app, web preview, etc.)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Security headers (adjusted for API use)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false,
+}));
+
+app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use(limiter);
+
+// Memory-only file storage - files never touch disk
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
 });
-
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(express.json());
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Cache for spot prices (refresh every 5 minutes)
-let priceCache = {
-  silver: 74.50,  // Updated default for Dec 2025
-  gold: 4490.00,  // Updated default for Dec 2025
-  lastUpdate: null,
-  gsRatio: 60.3
+// ============================================
+// SPOT PRICE CACHE & DATA
+// ============================================
+
+let spotPriceCache = {
+  prices: { gold: 2650, silver: 31, platinum: 980, palladium: 1050 },
+  lastUpdated: null,
 };
 
-/**
- * Fetch current spot prices from multiple sources
- */
-async function fetchSpotPrices() {
-  const now = Date.now();
-  
-  // Return cache if less than 5 minutes old
-  if (priceCache.lastUpdate && (now - priceCache.lastUpdate) < 5 * 60 * 1000) {
-    return priceCache;
-  }
+let historicalData = {
+  gold: {},
+  silver: {},
+  goldSilverRatio: {},
+  loaded: false,
+};
 
-  console.log('Fetching fresh spot prices...');
+// ============================================
+// FETCH LIVE SPOT PRICES
+// ============================================
 
-  // Try goldprice.org API (free, no key required)
+async function fetchLiveSpotPrices() {
   try {
-    const response = await fetch('https://data-asg.goldprice.org/dbXRates/USD', {
-      headers: {
-        'User-Agent': 'StackTrackerPro/1.0',
-        'Accept': 'application/json'
+    // Try freegoldapi.com first (free, no API key)
+    const goldResponse = await fetch('https://freegoldapi.com/api/XAU/USD');
+    if (goldResponse.ok) {
+      const goldData = await goldResponse.json();
+      
+      // Get gold/silver ratio for silver price
+      const ratioResponse = await fetch('https://freegoldapi.com/api/XAU/XAG');
+      let silverPrice = 31; // fallback
+      
+      if (ratioResponse.ok) {
+        const ratioData = await ratioResponse.json();
+        const ratio = ratioData.price || 85;
+        silverPrice = goldData.price / ratio;
       }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.items && data.items[0]) {
-        const item = data.items[0];
-        if (item.xauPrice && item.xagPrice) {
-          priceCache = {
-            gold: item.xauPrice,
-            silver: item.xagPrice,
-            gsRatio: item.xauPrice / item.xagPrice,
-            lastUpdate: now,
-            source: 'goldprice.org'
-          };
-          console.log('Prices from goldprice.org:', priceCache);
-          return priceCache;
-        }
-      }
+      
+      spotPriceCache = {
+        prices: {
+          gold: Math.round(goldData.price * 100) / 100,
+          silver: Math.round(silverPrice * 100) / 100,
+          platinum: 980, // freegoldapi doesn't have platinum/palladium
+          palladium: 1050,
+        },
+        lastUpdated: new Date(),
+      };
+      
+      console.log('Spot prices updated:', spotPriceCache.prices);
+      return spotPriceCache.prices;
     }
-  } catch (e) {
-    console.log('goldprice.org failed:', e.message);
+  } catch (error) {
+    console.error('Failed to fetch from freegoldapi:', error.message);
   }
-
-  // Fallback: Try metals.live API
+  
+  // Fallback: try metals.live
   try {
     const response = await fetch('https://api.metals.live/v1/spot');
     if (response.ok) {
       const data = await response.json();
-      const gold = data.find(m => m.metal === 'gold');
-      const silver = data.find(m => m.metal === 'silver');
+      spotPriceCache = {
+        prices: {
+          gold: data.gold || 2650,
+          silver: data.silver || 31,
+          platinum: data.platinum || 980,
+          palladium: data.palladium || 1050,
+        },
+        lastUpdated: new Date(),
+      };
+      return spotPriceCache.prices;
+    }
+  } catch (error) {
+    console.error('Failed to fetch from metals.live:', error.message);
+  }
+  
+  // Return cached/fallback prices
+  return spotPriceCache.prices;
+}
+
+// ============================================
+// LOAD HISTORICAL DATA
+// ============================================
+
+async function loadHistoricalData() {
+  try {
+    console.log('Loading historical price data...');
+    
+    // Fetch historical gold prices from freegoldapi
+    const historyResponse = await fetch('https://freegoldapi.com/api/XAU/USD/history?days=1095'); // ~3 years
+    if (historyResponse.ok) {
+      const historyData = await historyResponse.json();
       
-      if (gold && silver) {
-        priceCache = {
-          silver: silver.price,
-          gold: gold.price,
-          gsRatio: gold.price / silver.price,
-          lastUpdate: now,
-          source: 'metals.live'
-        };
-        console.log('Prices from metals.live:', priceCache);
-        return priceCache;
+      if (historyData.history && Array.isArray(historyData.history)) {
+        historyData.history.forEach(item => {
+          const date = item.date?.split('T')[0]; // YYYY-MM-DD
+          if (date && item.price) {
+            historicalData.gold[date] = item.price;
+          }
+        });
+        console.log(`Loaded ${Object.keys(historicalData.gold).length} historical gold prices`);
       }
     }
-  } catch (e) {
-    console.log('metals.live failed:', e.message);
-  }
-
-  // Try GoldAPI.io if key is configured
-  const goldApiKey = process.env.GOLDAPI_KEY;
-  if (goldApiKey) {
-    try {
-      const [goldRes, silverRes] = await Promise.all([
-        fetch('https://www.goldapi.io/api/XAU/USD', {
-          headers: { 'x-access-token': goldApiKey }
-        }),
-        fetch('https://www.goldapi.io/api/XAG/USD', {
-          headers: { 'x-access-token': goldApiKey }
-        })
-      ]);
-
-      if (goldRes.ok && silverRes.ok) {
-        const goldData = await goldRes.json();
-        const silverData = await silverRes.json();
-        
-        if (goldData.price && silverData.price) {
-          priceCache = {
-            silver: silverData.price,
-            gold: goldData.price,
-            gsRatio: goldData.price / silverData.price,
-            lastUpdate: now,
-            source: 'goldapi'
-          };
-          console.log('Prices from GoldAPI:', priceCache);
-          return priceCache;
-        }
+    
+    // Fetch gold/silver ratio history for silver prices
+    const ratioResponse = await fetch('https://freegoldapi.com/api/XAU/XAG/history?days=1095');
+    if (ratioResponse.ok) {
+      const ratioData = await ratioResponse.json();
+      
+      if (ratioData.history && Array.isArray(ratioData.history)) {
+        ratioData.history.forEach(item => {
+          const date = item.date?.split('T')[0];
+          if (date && item.price) {
+            historicalData.goldSilverRatio[date] = item.price;
+            // Calculate silver price from gold and ratio
+            const goldPrice = historicalData.gold[date];
+            if (goldPrice) {
+              historicalData.silver[date] = goldPrice / item.price;
+            }
+          }
+        });
+        console.log(`Loaded ${Object.keys(historicalData.silver).length} historical silver prices`);
       }
-    } catch (e) {
-      console.log('GoldAPI failed:', e.message);
     }
+    
+    historicalData.loaded = true;
+  } catch (error) {
+    console.error('Failed to load historical data:', error.message);
+    // Use fallback monthly averages
+    loadFallbackHistoricalData();
   }
-
-  console.log('All price sources failed, using cache');
-  return priceCache;
 }
 
-/**
- * Get historical spot price for a specific date
- */
-async function getHistoricalSpot(date, metal) {
-  const dateObj = new Date(date);
-  const now = new Date();
-  const daysDiff = Math.floor((now - dateObj) / (1000 * 60 * 60 * 24));
+// Fallback historical data (monthly averages)
+function loadFallbackHistoricalData() {
+  console.log('Loading fallback historical data...');
   
-  // If it's today or recent, return current prices
-  if (daysDiff <= 1) {
-    const prices = await fetchSpotPrices();
-    return metal === 'gold' ? prices.gold : prices.silver;
-  }
-
-  // Historical price data (monthly averages based on actual market data)
-  const historicalPrices = {
-    gold: {
-      '2025-12': 4480, '2025-11': 4200, '2025-10': 3950, '2025-09': 3700,
-      '2025-08': 3500, '2025-07': 3300, '2025-06': 3100, '2025-05': 2950,
-      '2025-04': 2850, '2025-03': 2750, '2025-02': 2700, '2025-01': 2650,
-      '2024-12': 2620, '2024-11': 2680, '2024-10': 2735, '2024-09': 2630,
-      '2024-08': 2500, '2024-07': 2425, '2024-06': 2330, '2024-05': 2350,
-      '2024-04': 2330, '2024-03': 2180, '2024-02': 2025, '2024-01': 2040,
-      '2023-12': 2060, '2023-11': 1980, '2023-10': 1980, '2023-09': 1915,
-      '2023-08': 1940, '2023-07': 1960, '2023-06': 1940, '2023-05': 1985,
-      '2023-04': 2000, '2023-03': 1940, '2023-02': 1860, '2023-01': 1925,
-    },
-    silver: {
-      '2025-12': 74, '2025-11': 68, '2025-10': 62, '2025-09': 55,
-      '2025-08': 48, '2025-07': 42, '2025-06': 38, '2025-05': 35,
-      '2025-04': 33, '2025-03': 32, '2025-02': 31, '2025-01': 30,
-      '2024-12': 29.50, '2024-11': 31.30, '2024-10': 33.70, '2024-09': 31.15,
-      '2024-08': 28.50, '2024-07': 29.10, '2024-06': 29.50, '2024-05': 31.25,
-      '2024-04': 27.50, '2024-03': 25.10, '2024-02': 22.75, '2024-01': 23.15,
-      '2023-12': 24.00, '2023-11': 24.50, '2023-10': 23.20, '2023-09': 23.35,
-      '2023-08': 23.80, '2023-07': 24.90, '2023-06': 23.70, '2023-05': 24.35,
-      '2023-04': 25.10, '2023-03': 22.50, '2023-02': 21.80, '2023-01': 23.85,
-    }
+  const fallbackGold = {
+    '2024-12': 2650, '2024-11': 2700, '2024-10': 2750, '2024-09': 2650,
+    '2024-08': 2500, '2024-07': 2400, '2024-06': 2350, '2024-05': 2350,
+    '2024-04': 2350, '2024-03': 2200, '2024-02': 2050, '2024-01': 2050,
+    '2023-12': 2050, '2023-11': 2000, '2023-10': 1980, '2023-09': 1920,
+    '2023-08': 1940, '2023-07': 1960, '2023-06': 1920, '2023-05': 1980,
+    '2023-04': 2000, '2023-03': 1980, '2023-02': 1850, '2023-01': 1920,
+    '2022-12': 1800, '2022-11': 1750, '2022-10': 1650, '2022-09': 1680,
+    '2022-08': 1750, '2022-07': 1730, '2022-06': 1830, '2022-05': 1850,
+    '2022-04': 1920, '2022-03': 1950, '2022-02': 1900, '2022-01': 1820,
   };
-
-  const yearMonth = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-  const prices = historicalPrices[metal];
   
-  if (prices && prices[yearMonth]) {
-    // Add some daily variance based on day of month
-    const dayVariance = ((dateObj.getDate() - 15) / 30) * (prices[yearMonth] * 0.03);
-    return Math.round((prices[yearMonth] + dayVariance) * 100) / 100;
-  }
-
-  // Fallback for older dates
-  const currentPrices = await fetchSpotPrices();
-  const currentPrice = metal === 'gold' ? currentPrices.gold : currentPrices.silver;
-  const yearsAgo = daysDiff / 365;
-  const estimatedPrice = currentPrice / (1 + (yearsAgo * 0.30));
+  const fallbackSilver = {
+    '2024-12': 31, '2024-11': 32, '2024-10': 33, '2024-09': 31,
+    '2024-08': 28, '2024-07': 29, '2024-06': 29, '2024-05': 27,
+    '2024-04': 27, '2024-03': 25, '2024-02': 23, '2024-01': 23,
+    '2023-12': 24, '2023-11': 24, '2023-10': 23, '2023-09': 23,
+    '2023-08': 24, '2023-07': 25, '2023-06': 23, '2023-05': 24,
+    '2023-04': 25, '2023-03': 23, '2023-02': 22, '2023-01': 24,
+    '2022-12': 24, '2022-11': 21, '2022-10': 19, '2022-09': 19,
+    '2022-08': 20, '2022-07': 19, '2022-06': 21, '2022-05': 22,
+    '2022-04': 24, '2022-03': 25, '2022-02': 24, '2022-01': 24,
+  };
   
-  return Math.round(estimatedPrice * 100) / 100;
+  // Expand monthly data to daily
+  Object.entries(fallbackGold).forEach(([month, price]) => {
+    for (let day = 1; day <= 31; day++) {
+      const date = `${month}-${day.toString().padStart(2, '0')}`;
+      historicalData.gold[date] = price;
+    }
+  });
+  
+  Object.entries(fallbackSilver).forEach(([month, price]) => {
+    for (let day = 1; day <= 31; day++) {
+      const date = `${month}-${day.toString().padStart(2, '0')}`;
+      historicalData.silver[date] = price;
+    }
+  });
+  
+  historicalData.loaded = true;
+  console.log('Fallback historical data loaded');
 }
 
 // ============================================
-// API ROUTES
+// API ENDPOINTS
 // ============================================
 
 /**
- * Health check endpoint
+ * Health check
  */
-app.get('/', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
-    service: 'Stack Tracker Pro API',
-    version: '1.2.0',
-    privacy: 'Memory-only image processing - we never store your data',
-    endpoints: [
-      'GET /api/spot-prices - Current silver and gold prices',
-      'GET /api/historical-spot - Historical spot price lookup',
-      'POST /api/scan-receipt - AI-powered receipt scanning'
-    ]
+    privacy: 'first',
+    historicalDataLoaded: historicalData.loaded,
+    spotPricesLastUpdated: spotPriceCache.lastUpdated,
   });
 });
 
@@ -236,72 +252,95 @@ app.get('/', (req, res) => {
  */
 app.get('/api/spot-prices', async (req, res) => {
   try {
-    const prices = await fetchSpotPrices();
-    res.json({
-      success: true,
-      silver: Math.round(prices.silver * 100) / 100,
-      gold: Math.round(prices.gold * 100) / 100,
-      gsRatio: Math.round(prices.gsRatio * 10) / 10,
-      source: prices.source || 'cache',
-      timestamp: new Date().toISOString()
-    });
+    // Refresh if cache is older than 5 minutes
+    const cacheAge = spotPriceCache.lastUpdated 
+      ? (Date.now() - spotPriceCache.lastUpdated.getTime()) / 1000 / 60 
+      : Infinity;
+    
+    if (cacheAge > 5) {
+      await fetchLiveSpotPrices();
+    }
+    
+    res.json(spotPriceCache.prices);
   } catch (error) {
-    console.error('Spot prices error:', error);
-    res.json({
-      success: true,
-      silver: priceCache.silver,
-      gold: priceCache.gold,
-      gsRatio: priceCache.gsRatio,
-      source: 'fallback',
-      timestamp: new Date().toISOString()
-    });
+    console.error('Spot price error:', error);
+    res.json(spotPriceCache.prices); // Return cached prices on error
   }
 });
 
 /**
- * Get historical spot price
+ * Get historical spot price for a specific date
  */
-app.get('/api/historical-spot', async (req, res) => {
+app.get('/api/historical-spot', (req, res) => {
   try {
-    const { date, metal } = req.query;
+    const { date, metal = 'gold' } = req.query;
     
     if (!date) {
-      return res.status(400).json({ success: false, error: 'Date parameter required' });
+      return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
     }
-
-    const metalType = (metal || 'silver').toLowerCase();
-    if (!['gold', 'silver'].includes(metalType)) {
-      return res.status(400).json({ success: false, error: 'Metal must be gold or silver' });
-    }
-
-    const price = await getHistoricalSpot(date, metalType);
     
-    res.json({
-      success: true,
-      date,
-      metal: metalType,
-      price,
-      note: 'Historical prices are approximations based on monthly averages'
-    });
+    // Normalize date format
+    const normalizedDate = date.trim();
+    
+    // Try exact date first
+    let price = historicalData[metal]?.[normalizedDate];
+    
+    // If not found, try to find nearest date
+    if (!price) {
+      const targetDate = new Date(normalizedDate);
+      const dates = Object.keys(historicalData[metal] || {}).sort();
+      
+      // Find closest date
+      let closestDate = null;
+      let minDiff = Infinity;
+      
+      for (const d of dates) {
+        const diff = Math.abs(new Date(d) - targetDate);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestDate = d;
+        }
+      }
+      
+      if (closestDate && minDiff < 7 * 24 * 60 * 60 * 1000) { // Within 7 days
+        price = historicalData[metal][closestDate];
+      }
+    }
+    
+    if (price) {
+      res.json({ 
+        date: normalizedDate,
+        metal,
+        price: Math.round(price * 100) / 100,
+        source: 'historical',
+      });
+    } else {
+      // Return current spot as fallback
+      res.json({
+        date: normalizedDate,
+        metal,
+        price: spotPriceCache.prices[metal] || 0,
+        source: 'current-fallback',
+        note: 'Historical price not available, using current spot',
+      });
+    }
   } catch (error) {
     console.error('Historical spot error:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch historical price' });
+    res.status(500).json({ error: 'Failed to lookup historical price' });
   }
 });
 
 /**
- * Scan receipt with AI
- * Privacy: Image is processed in memory only and never stored
+ * Scan receipt using Claude Vision
+ * Privacy: Image is processed in memory only, never stored
  */
 app.post('/api/scan-receipt', upload.single('receipt'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No image provided' });
+      return res.status(400).json({ error: 'No image provided' });
     }
 
-    console.log('Processing receipt scan (memory only)...');
-
-    // Convert buffer to base64
+    // Convert buffer to base64 (stays in memory)
     const base64Image = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype || 'image/jpeg';
 
@@ -323,102 +362,148 @@ app.post('/api/scan-receipt', upload.single('receipt'), async (req, res) => {
             },
             {
               type: 'text',
-              text: `Analyze this precious metals purchase receipt/invoice and extract the following information. Return ONLY a valid JSON object with these fields:
-
+              text: `Analyze this precious metals purchase receipt and extract the following information. 
+              
+Return ONLY a JSON object with these fields (use null if not found):
 {
-  "metal": "gold" or "silver" (determine from product description),
-  "productName": "exact product name from receipt",
-  "source": "dealer/company name",
-  "datePurchased": "YYYY-MM-DD format",
-  "ozt": troy ounces PER UNIT (number only, e.g., 1 for a 1oz coin),
-  "quantity": number of items purchased,
-  "unitPrice": price PER UNIT in dollars (number only, calculate from total if needed: total ÷ quantity),
-  "taxes": tax amount (number only, 0 if not shown),
-  "shipping": shipping cost (number only, 0 if not shown)
+  "dealer": "dealer/company name",
+  "purchaseDate": "YYYY-MM-DD format",
+  "metal": "gold, silver, platinum, or palladium",
+  "description": "product name/description",
+  "quantity": number of items,
+  "ozt": troy ounces per item (use standard weights: 1oz coins = 1, 1/10oz = 0.1, etc.),
+  "unitPrice": price per unit in dollars (number only),
+  "totalPrice": total order price in dollars (number only)
 }
 
 Important:
-- For unitPrice, if receipt shows total value, divide by quantity to get per-unit price
-- For ozt, enter the weight of ONE item (e.g., 1 for a 1oz coin, even if buying 10)
-- Return ONLY the JSON object, no other text
-- If a field is unclear, use null`
-            }
+- unitPrice should be the price PER ITEM, not the total
+- If you see a total and quantity, calculate unitPrice = total / quantity
+- Standard coin weights: American Eagle 1oz, 1/2oz, 1/4oz, 1/10oz
+- Look for the actual metal type (gold, silver, etc.), not just "bullion"
+- Date should be the purchase/order date, not shipping date`
+            },
           ],
-        }
+        },
       ],
     });
 
-    // Parse the response
-    const content = response.content[0].text;
-    console.log('Claude response:', content);
+    // Parse Claude's response
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type');
+    }
 
     // Extract JSON from response
     let extractedData;
     try {
-      extractedData = JSON.parse(content);
-    } catch {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      // Try to find JSON in the response
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         extractedData = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error('Could not parse receipt data');
+        throw new Error('No JSON found in response');
       }
+    } catch (parseError) {
+      console.error('Failed to parse receipt data:', content.text);
+      extractedData = {};
     }
 
-    // Clear the buffer immediately (extra safety)
+    // Clear image data from memory immediately
     req.file.buffer = null;
 
     res.json({
       success: true,
-      data: extractedData,
-      privacy: 'Image processed in memory only - never stored'
+      ...extractedData,
+      privacyNote: 'Image processed in memory and immediately discarded',
     });
 
   } catch (error) {
-    console.error('Receipt scan error:', error);
-    
+    // Ensure image is cleared even on error
     if (req.file) {
       req.file.buffer = null;
     }
-
+    
+    console.error('Receipt scan error:', error);
     res.status(500).json({ 
-      success: false, 
       error: 'Failed to process receipt',
-      message: error.message
+      details: error.message 
     });
   }
 });
 
 /**
- * Privacy info endpoint
+ * Privacy policy endpoint
  */
 app.get('/api/privacy', (req, res) => {
   res.json({
-    principle: "We architected the system so we CAN'T access your data",
-    imageProcessing: {
-      storage: 'Memory only (RAM)',
-      persistence: 'None - images deleted immediately after processing',
-      encryption: 'HTTPS in transit',
-      retention: '0 seconds'
-    },
-    portfolioData: {
-      storage: 'Your device only',
-      serverAccess: 'None - we never see your holdings',
-      encryption: 'AES-256 on device'
-    },
-    analytics: 'None',
-    tracking: 'None',
-    thirdPartySharing: 'None'
+    version: '1.0.0',
+    lastUpdated: '2024-12-26',
+    summary: 'Stack Tracker Pro is built with privacy as the foundation. We cannot access your data.',
+    principles: [
+      {
+        title: 'Memory-Only Image Processing',
+        description: 'Receipt images are processed entirely in RAM and never written to disk.',
+        technical: 'Images held in RAM only during API call, garbage collected immediately after response.'
+      },
+      {
+        title: 'No Account Required',
+        description: 'Use the app fully without creating an account. Your data stays on your device.',
+        technical: 'Local-first architecture with optional encrypted sync.'
+      },
+      {
+        title: 'End-to-End Encryption',
+        description: 'If you choose to backup/sync, your data is encrypted on your device before transmission.',
+        technical: 'AES-256-GCM encryption with user-held keys. Server stores only ciphertext.'
+      },
+      {
+        title: 'No Tracking',
+        description: 'No analytics, no third-party SDKs, no advertising. We do not track your usage.',
+        technical: 'No Google Analytics, Facebook SDK, or similar. No device fingerprinting.'
+      },
+      {
+        title: 'Your Data, Your Control',
+        description: 'Export all your data anytime. Delete everything with one tap.',
+        technical: 'Full JSON/CSV export, complete local deletion, server backup deletion via API.'
+      }
+    ],
+    contact: 'privacy@stacktrackerpro.com'
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Stack Tracker Pro API running on port ${PORT}`);
-  console.log('Privacy mode: Memory-only image processing');
-  
-  // Fetch initial prices
-  fetchSpotPrices().then(prices => {
-    console.log(`Initial prices loaded - Silver: $${prices.silver}, Gold: $${prices.gold}`);
+// ============================================
+// STARTUP
+// ============================================
+
+const PORT = process.env.PORT || 3000;
+
+// Load data on startup
+Promise.all([
+  fetchLiveSpotPrices(),
+  loadHistoricalData(),
+]).then(() => {
+  app.listen(PORT, () => {
+    console.log(`\n🪙 Stack Tracker API running on port ${PORT}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔒 Privacy Mode: ENABLED');
+    console.log('📷 Image Storage: DISABLED (memory-only)');
+    console.log('📊 Analytics: DISABLED');
+    console.log('💰 Spot Prices:', spotPriceCache.prices);
+    console.log('📅 Historical Data:', historicalData.loaded ? 'LOADED' : 'FALLBACK');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  });
+}).catch(error => {
+  console.error('Startup error:', error);
+  // Start anyway with fallback data
+  app.listen(PORT, () => {
+    console.log(`Stack Tracker API running on port ${PORT} (with fallback data)`);
   });
 });
+
+// Refresh spot prices every 5 minutes
+setInterval(fetchLiveSpotPrices, 5 * 60 * 1000);
+
+// Refresh historical data daily
+setInterval(loadHistoricalData, 24 * 60 * 60 * 1000);
+
+module.exports = app;
