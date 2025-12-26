@@ -75,62 +75,34 @@ let historicalData = {
 
 async function fetchLiveSpotPrices() {
   try {
-    // Try freegoldapi.com first (free, no API key)
-    const goldResponse = await fetch('https://freegoldapi.com/api/XAU/USD');
-    if (goldResponse.ok) {
-      const goldData = await goldResponse.json();
-      
-      // Get gold/silver ratio for silver price
-      const ratioResponse = await fetch('https://freegoldapi.com/api/XAU/XAG');
-      let silverPrice = 31; // fallback
-      
-      if (ratioResponse.ok) {
-        const ratioData = await ratioResponse.json();
-        const ratio = ratioData.price || 85;
-        silverPrice = goldData.price / ratio;
-      }
-      
-      spotPriceCache = {
-        prices: {
-          gold: Math.round(goldData.price * 100) / 100,
-          silver: Math.round(silverPrice * 100) / 100,
-          platinum: 980, // freegoldapi doesn't have platinum/palladium
-          palladium: 1050,
-        },
-        lastUpdated: new Date(),
-      };
-      
-      console.log('Spot prices updated:', spotPriceCache.prices);
-      return spotPriceCache.prices;
-    }
-  } catch (error) {
-    console.error('Failed to fetch from freegoldapi:', error.message);
-  }
-  
-  // Fallback: try metals.live
-  try {
-    const response = await fetch('https://api.metals.live/v1/spot');
+    // Use metalpriceapi.com (free tier, 100 requests/month)
+    const response = await fetch('https://api.metalpriceapi.com/v1/latest?api_key=demo&base=USD&currencies=XAU,XAG,XPT,XPD');
     if (response.ok) {
       const data = await response.json();
-      spotPriceCache = {
-        prices: {
-          gold: data.gold || 2650,
-          silver: data.silver || 31,
-          platinum: data.platinum || 980,
-          palladium: data.palladium || 1050,
-        },
-        lastUpdated: new Date(),
-      };
-      return spotPriceCache.prices;
+      if (data.success && data.rates) {
+        // API returns price per 1 USD, we need to invert for price per oz
+        spotPriceCache = {
+          prices: {
+            gold: Math.round((1 / data.rates.XAU) * 100) / 100,
+            silver: Math.round((1 / data.rates.XAG) * 100) / 100,
+            platinum: Math.round((1 / data.rates.XPT) * 100) / 100,
+            palladium: Math.round((1 / data.rates.XPD) * 100) / 100,
+          },
+          lastUpdated: new Date(),
+        };
+        console.log('Spot prices updated:', spotPriceCache.prices);
+        return spotPriceCache.prices;
+      }
     }
   } catch (error) {
-    console.error('Failed to fetch from metals.live:', error.message);
+    console.error('Failed to fetch spot prices:', error.message);
   }
   
-  // Return cached/fallback prices
+  // Fallback to current approximate prices (Dec 2024)
+  console.log('Using fallback spot prices');
+  spotPriceCache.prices = { gold: 2620, silver: 29.50, platinum: 930, palladium: 920 };
   return spotPriceCache.prices;
 }
-
 // ============================================
 // LOAD HISTORICAL DATA
 // ============================================
