@@ -17,6 +17,7 @@ RUN npm ci --only=production
 
 # Copy application code
 COPY server.js ./
+COPY data/ ./data/
 
 # Security: No writable volumes needed (we never store data)
 # The app runs entirely in memory

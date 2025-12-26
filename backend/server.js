@@ -120,6 +120,16 @@ function loadHistoricalData() {
 
     // Load historical prices from JSON file
     const dataPath = path.join(__dirname, 'data', 'historical-prices.json');
+    console.log('📁 Data file path:', dataPath);
+
+    // Check if file exists
+    if (!fs.existsSync(dataPath)) {
+      console.error('❌ historical-prices.json NOT FOUND at:', dataPath);
+      console.log('📂 Directory contents:', fs.readdirSync(__dirname));
+      throw new Error('Historical prices file not found');
+    }
+
+    console.log('✅ Found historical-prices.json');
     const rawData = fs.readFileSync(dataPath, 'utf8');
     const monthlyPrices = JSON.parse(rawData);
 
@@ -141,14 +151,19 @@ function loadHistoricalData() {
     console.log(`✅ Loaded ${Object.keys(historicalData.gold).length} historical gold prices (daily granularity)`);
     console.log(`✅ Loaded ${Object.keys(historicalData.silver).length} historical silver prices (daily granularity)`);
 
-    // Log sample prices to verify
+    // Log sample prices to verify correct data is loaded
     const sampleDates = ['2023-09-01', '2023-09-15', '2024-12-01', '2025-12-25'];
-    console.log('📅 Sample historical prices:');
+    console.log('📅 Sample historical prices (should match JSON file):');
     sampleDates.forEach(d => {
       if (historicalData.gold[d]) {
         console.log(`   ${d}: Gold $${historicalData.gold[d]}, Silver $${historicalData.silver[d]}`);
       }
     });
+
+    // Log key verification dates
+    console.log('🔍 Key verification:');
+    console.log('   2024-12-01 should be: Gold $2400, Silver $28');
+    console.log('   2023-09-01 should be: Gold $1920, Silver $23');
 
     historicalData.loaded = true;
   } catch (error) {
