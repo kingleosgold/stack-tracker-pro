@@ -14,6 +14,9 @@ const helmet = require('helmet');
 
 const app = express();
 
+// Trust proxy for correct client IP detection
+app.set('trust proxy', 1);
+
 // CORS - allow requests from any origin (mobile app, web preview, etc.)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -98,9 +101,9 @@ async function fetchLiveSpotPrices() {
     console.error('Failed to fetch spot prices:', error.message);
   }
   
-  // Fallback to current approximate prices (Dec 2024)
+  // Fallback to current hardcoded prices (Dec 2024)
   console.log('Using fallback spot prices');
-  spotPriceCache.prices = { gold: 2620, silver: 29.50, platinum: 930, palladium: 920 };
+  spotPriceCache.prices = { gold: 2620, silver: 29.80, platinum: 935, palladium: 915 };
   return spotPriceCache.prices;
 }
 // ============================================
