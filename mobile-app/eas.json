@@ -34,10 +34,7 @@
       "ios": {
         "simulator": false,
         "resourceClass": "m-medium",
-        "autoIncrement": true,
-        "config": {
-          "usesNonExemptEncryption": false
-        }
+        "autoIncrement": true
       },
       "android": {
         "buildType": "app-bundle",
