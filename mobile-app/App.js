@@ -454,7 +454,7 @@ export default function App() {
         setPriceSource('cached');
       }
     } catch (error) {
-      console.log('Using cached spot prices:', error.message);
+      if (__DEV__) console.log('Using cached spot prices:', error.message);
       setPriceSource('cached');
     }
   };
@@ -466,7 +466,7 @@ export default function App() {
       const data = await response.json();
       if (data.success && data.price) return data.price;
     } catch (error) {
-      console.log('Could not fetch historical spot');
+      if (__DEV__) console.log('Could not fetch historical spot');
     }
     return metal === 'gold' ? goldSpot : silverSpot;
   };
@@ -502,7 +502,7 @@ export default function App() {
       const formData = new FormData();
       formData.append('receipt', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'receipt.jpg' });
 
-      console.log('📤 Sending receipt to server...');
+      if (__DEV__) console.log('📤 Sending receipt to server...');
 
       const response = await fetch(`${API_BASE_URL}/api/scan-receipt`, {
         method: 'POST',
@@ -510,10 +510,10 @@ export default function App() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      console.log('📥 Response status:', response.status);
+      if (__DEV__) console.log('📥 Response status:', response.status);
 
       const data = await response.json();
-      console.log('📄 Full server response:', JSON.stringify(data, null, 2));
+      if (__DEV__) console.log('📄 Full server response:', JSON.stringify(data, null, 2));
 
       // Server returns data directly in the response (not wrapped in data.data)
       if (data.success) {
@@ -555,9 +555,9 @@ export default function App() {
 
         setScanStatus('success');
         setScanMessage('Receipt analyzed!');
-        console.log('✅ Receipt scan successful');
+        if (__DEV__) console.log('✅ Receipt scan successful');
       } else {
-        console.log('⚠️ Server returned success=false or missing data');
+        if (__DEV__) console.log('⚠️ Server returned success=false or missing data');
         setScanStatus('error');
         setScanMessage('Could not analyze.');
       }
