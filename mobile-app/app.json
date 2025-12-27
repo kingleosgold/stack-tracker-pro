@@ -6,6 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "primaryColor": "#fbbf24",
+    "scheme": "stacktrackerpro",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -16,30 +18,40 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.stacktracker.pro",
+      "bundleIdentifier": "com.stacktrackerpro.app",
       "buildNumber": "1",
+      "requireFullScreen": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "Stack Tracker Pro uses the camera to scan receipts and photos of your stack for automatic data entry.",
-        "NSPhotoLibraryUsageDescription": "Stack Tracker Pro accesses your photo library to scan receipts and stack photos for automatic data entry.",
-        "NSFaceIDUsageDescription": "Stack Tracker Pro uses Face ID to protect your portfolio data.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSCameraUsageDescription": "Stack Tracker Pro needs camera access to scan your precious metals purchase receipts using AI-powered OCR. Your photos are processed securely and never stored.",
+        "NSPhotoLibraryUsageDescription": "Stack Tracker Pro needs photo library access to scan your purchase receipts. Your photos are processed securely and never stored on our servers.",
+        "NSPhotoLibraryAddUsageDescription": "Stack Tracker Pro needs permission to save export files to your photo library for backup purposes.",
+        "NSFaceIDUsageDescription": "Stack Tracker Pro uses Face ID to securely protect your precious metals portfolio data with biometric authentication.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["mailto"]
       },
       "config": {
         "usesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": ["applinks:stacktrackerpro.app"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
       },
-      "package": "com.stacktracker.pro",
+      "package": "com.stacktrackerpro.app",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -49,22 +61,38 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Stack Tracker Pro accesses your photos to scan receipts for automatic data entry.",
-          "cameraPermission": "Stack Tracker Pro uses the camera to photograph receipts and your stack."
+          "photosPermission": "Stack Tracker Pro accesses your photos to scan precious metals purchase receipts. Your photos are processed securely and never stored.",
+          "cameraPermission": "Stack Tracker Pro uses the camera to scan purchase receipts using AI. Your photos are processed in memory and immediately discarded."
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Stack Tracker Pro uses Face ID to secure your portfolio data."
+          "faceIDPermission": "Stack Tracker Pro uses Face ID to securely protect your precious metals portfolio data."
         }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      [
+        "expo-file-system"
+      ],
+      [
+        "expo-sharing"
       ]
     ],
     "extra": {
       "eas": {
         "projectId": "your-project-id-here"
-      }
+      },
+      "apiUrl": "https://stack-tracker-pro-production.up.railway.app"
     },
-    "owner": "your-expo-username"
+    "owner": "your-expo-username",
+    "privacy": "unlisted",
+    "description": "Privacy-first precious metals portfolio tracker. Track your gold and silver holdings with AI-powered receipt scanning. Your data stays on your device - we can't access it.",
+    "githubUrl": "https://github.com/kingleosgold/stack-tracker-pro"
   }
 }

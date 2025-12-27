@@ -52,9 +52,33 @@ npx expo start --android
 2. Update `API_BASE_URL` in App.js to point to your backend
 3. Run the app and test scanning a receipt
 
-## Building for App Stores
+## 🚀 Production Build & Deployment
 
-### Setup EAS Build
+**⚡ Quick Reference:**
+```bash
+# Run pre-launch checklist
+./pre-launch-checklist.sh
+
+# Build for production
+eas build --profile production --platform ios
+eas build --profile production --platform android
+
+# Submit to stores
+eas submit --platform ios --latest
+eas submit --platform android --latest
+```
+
+### Complete App Store Submission Guide
+
+See **[BUILD_READY.md](../BUILD_READY.md)** for the comprehensive production deployment guide including:
+- Complete setup instructions
+- App Store Connect configuration
+- Privacy policy requirements
+- Asset requirements
+- Submission checklist
+- Common issues & solutions
+
+### Setup EAS Build (First Time)
 
 ```bash
 # Install EAS CLI
@@ -63,35 +87,40 @@ npm install -g eas-cli
 # Login to Expo
 eas login
 
-# Configure project
-eas build:configure
+# Initialize project
+eas init
+
+# Update app.json with your project ID
+# Update eas.json with your Apple/Google credentials
 ```
 
-### Build for iOS
+### Build Profiles
 
+#### Development (Local Testing)
 ```bash
-# Development build
-eas build --platform ios --profile development
-
-# Production build for App Store
-eas build --platform ios --profile production
-
-# Submit to App Store
-eas submit --platform ios
+eas build --profile development --platform ios
 ```
+- Development client for testing
+- Runs on simulator
+- Uses localhost API
 
-### Build for Android
-
+#### Preview (TestFlight/Internal Testing)
 ```bash
-# Development APK
-eas build --platform android --profile development
-
-# Production AAB for Google Play
-eas build --platform android --profile production
-
-# Submit to Google Play
-eas submit --platform android
+eas build --profile preview --platform ios
+eas build --profile preview --platform android
 ```
+- Internal distribution
+- Production API endpoint
+- APK for Android testers
+
+#### Production (App Store Release)
+```bash
+eas build --profile production --platform ios
+eas build --profile production --platform android
+```
+- Auto-increments build numbers
+- Production API endpoint
+- AAB for Google Play (required)
 
 ## Project Structure
 
