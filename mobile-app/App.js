@@ -214,6 +214,12 @@ export default function App() {
   const [scanCount, setScanCount] = useState(0);
   const FREE_SCAN_LIMIT = 5;
 
+  // Promo Code / Lifetime Access
+  const [versionTapCount, setVersionTapCount] = useState(0);
+  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [hasLifetimeAccess, setHasLifetimeAccess] = useState(false);
+
   // Scan State
   const [scanStatus, setScanStatus] = useState(null);
   const [scanMessage, setScanMessage] = useState('');
@@ -353,7 +359,7 @@ export default function App() {
 
   const loadData = async () => {
     try {
-      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedScanCount, storedMidnightValue, storedMidnightDate] = await Promise.all([
+      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedScanCount, storedMidnightValue, storedMidnightDate, lifetimeAccess] = await Promise.all([
         AsyncStorage.getItem('stack_silver'),
         AsyncStorage.getItem('stack_gold'),
         AsyncStorage.getItem('stack_silver_spot'),
@@ -363,6 +369,7 @@ export default function App() {
         AsyncStorage.getItem('stack_scan_count'),
         AsyncStorage.getItem('stack_midnight_value'),
         AsyncStorage.getItem('stack_midnight_date'),
+        AsyncStorage.getItem('stack_lifetime_access'),
       ]);
 
       if (silver) setSilverItems(JSON.parse(silver));
@@ -373,6 +380,7 @@ export default function App() {
       if (storedScanCount) setScanCount(parseInt(storedScanCount));
       if (storedMidnightValue) setMidnightValue(parseFloat(storedMidnightValue));
       if (storedMidnightDate) setMidnightDate(storedMidnightDate);
+      if (lifetimeAccess === 'true') setHasLifetimeAccess(true);
 
       // Show tutorial if user hasn't seen it
       if (!hasSeenTutorial) {
@@ -453,12 +461,49 @@ export default function App() {
     return isGold;
   };
 
+  // Promo code validation
+  const validatePromoCode = async (code) => {
+    const validCodes = ['FOUNDER2025', 'EARLYBIRD', 'STACKERLIFE'];
+
+    if (validCodes.includes(code.toUpperCase())) {
+      await AsyncStorage.setItem('stack_lifetime_access', 'true');
+      setHasLifetimeAccess(true);
+      setPromoCode('');
+      setShowPromoInput(false);
+      setVersionTapCount(0);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        '🎉 Lifetime Access Granted!',
+        'You now have unlimited access to all Stack Tracker Pro features forever. Thank you for being an early supporter!',
+        [{ text: 'Awesome!', style: 'default' }]
+      );
+      return true;
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Invalid Code', 'This promo code is not valid. Please check and try again.');
+      return false;
+    }
+  };
+
+  // Handle version tap for promo code reveal
+  const handleVersionTap = () => {
+    const newCount = versionTapCount + 1;
+    setVersionTapCount(newCount);
+
+    if (newCount === 5) {
+      setShowPromoInput(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (newCount < 5) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   // Free tier limit check
   const handleAddPurchase = () => {
     const FREE_TIER_LIMIT = 25;
     const totalItems = silverItems.length + goldItems.length;
 
-    if (!hasGold && totalItems >= FREE_TIER_LIMIT) {
+    if (!hasGold && !hasLifetimeAccess && totalItems >= FREE_TIER_LIMIT) {
       // User has reached free tier limit, show paywall
       // Haptic feedback on hitting limit
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -497,12 +542,12 @@ export default function App() {
   };
 
   const canScan = () => {
-    if (hasGold) return true; // Gold tier has unlimited scans
+    if (hasGold || hasLifetimeAccess) return true; // Gold tier or lifetime access has unlimited scans
     return scanCount < FREE_SCAN_LIMIT;
   };
 
   const checkScanLimit = () => {
-    if (hasGold) return true; // Gold tier bypass
+    if (hasGold || hasLifetimeAccess) return true; // Gold tier or lifetime access bypass
 
     if (scanCount >= FREE_SCAN_LIMIT) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -1555,8 +1600,54 @@ export default function App() {
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>About</Text>
-              <Text style={{ color: colors.muted }}>Stack Tracker Pro v1.0.0</Text>
+              <TouchableOpacity onPress={handleVersionTap} activeOpacity={0.7}>
+                <Text style={{ color: colors.muted }}>Stack Tracker Pro v1.0.0</Text>
+              </TouchableOpacity>
               <Text style={{ color: colors.gold, fontStyle: 'italic', marginTop: 8 }}>"We CAN'T access your data."</Text>
+
+              {hasLifetimeAccess && (
+                <View style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: 8 }}>
+                  <Text style={{ color: colors.success, fontSize: 12, fontWeight: '600' }}>
+                    ✓ Lifetime Access Active
+                  </Text>
+                </View>
+              )}
+
+              {showPromoInput && !hasLifetimeAccess && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={{ color: colors.text, fontSize: 12, marginBottom: 8 }}>Enter Promo Code:</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#27272a',
+                        color: colors.text,
+                        padding: 12,
+                        borderRadius: 8,
+                        fontSize: 14,
+                      }}
+                      placeholder="FOUNDER2025"
+                      placeholderTextColor="#52525b"
+                      value={promoCode}
+                      onChangeText={setPromoCode}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: colors.gold,
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        borderRadius: 8,
+                        justifyContent: 'center',
+                      }}
+                      onPress={() => validatePromoCode(promoCode)}
+                    >
+                      <Text style={{ color: '#000', fontWeight: '600' }}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
           </>
         )}
@@ -1622,7 +1713,7 @@ export default function App() {
                     <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver }]} onPress={scanReceipt}>
                       <Text style={{ color: '#000' }}>🖼 Scan from Gallery</Text>
                     </TouchableOpacity>
-                    {!hasGold && (
+                    {!hasGold && !hasLifetimeAccess && (
                       <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
                         {scanCount >= FREE_SCAN_LIMIT ? (
                           <Text style={{ color: colors.error }}>Scan limit reached. Upgrade to Gold for unlimited!</Text>
@@ -1634,6 +1725,11 @@ export default function App() {
                     {hasGold && (
                       <Text style={{ color: colors.gold, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
                         ✓ Unlimited scans with Gold
+                      </Text>
+                    )}
+                    {hasLifetimeAccess && !hasGold && (
+                      <Text style={{ color: colors.success, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
+                        ✓ Unlimited scans (Lifetime Access)
                       </Text>
                     )}
                   </View>
