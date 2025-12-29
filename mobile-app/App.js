@@ -197,6 +197,9 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importData, setImportData] = useState([]);
+  const [showScannedItemsPreview, setShowScannedItemsPreview] = useState(false);
+  const [scannedItems, setScannedItems] = useState([]);
+  const [scannedMetadata, setScannedMetadata] = useState({ purchaseDate: '', dealer: '' });
   const [showDetailView, setShowDetailView] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
   const [detailMetal, setDetailMetal] = useState(null);
@@ -763,59 +766,54 @@ export default function App() {
           summary += `: ${parts.join(', ')}`;
         }
 
-        // Take the first item and pre-fill the form
-        const firstItem = items[0];
-        const extractedMetal = firstItem.metal === 'gold' ? 'gold' : 'silver';
+        // Process ALL items and prepare them for preview
+        const processedItems = [];
+        for (const item of items) {
+          const extractedMetal = item.metal === 'gold' ? 'gold' : 'silver';
 
-        // Get historical spot price for this item
-        let spotPrice = '';
-        if (purchaseDate.length === 10) {
-          const historicalPrice = await fetchHistoricalSpot(purchaseDate, extractedMetal);
-          if (historicalPrice) spotPrice = historicalPrice.toString();
+          // Get historical spot price for this item
+          let spotPrice = '';
+          if (purchaseDate.length === 10) {
+            const historicalPrice = await fetchHistoricalSpot(purchaseDate, extractedMetal);
+            if (historicalPrice) spotPrice = historicalPrice.toString();
+          }
+
+          const unitPrice = parseFloat(item.unitPrice) || 0;
+          const ozt = parseFloat(item.ozt) || 0;
+          const spotNum = parseFloat(spotPrice) || 0;
+          let premium = '0';
+          if (unitPrice > 0 && spotNum > 0 && ozt > 0) {
+            premium = (unitPrice - (spotNum * ozt)).toFixed(2);
+          }
+
+          processedItems.push({
+            metal: extractedMetal,
+            productName: item.description || '',
+            source: dealer,
+            datePurchased: purchaseDate,
+            ozt: parseFloat(item.ozt) || 0,
+            quantity: parseInt(item.quantity) || 1,
+            unitPrice: parseFloat(item.unitPrice) || 0,
+            taxes: 0,
+            shipping: 0,
+            spotPrice: parseFloat(spotPrice) || 0,
+            premium: parseFloat(premium) || 0,
+          });
         }
 
-        const unitPrice = parseFloat(firstItem.unitPrice) || 0;
-        const ozt = parseFloat(firstItem.ozt) || 0;
-        const spotNum = parseFloat(spotPrice) || 0;
-        let premium = '0';
-        if (unitPrice > 0 && spotNum > 0 && ozt > 0) {
-          premium = (unitPrice - (spotNum * ozt)).toFixed(2);
-        }
-
-        // Pre-fill the form with scanned data
-        setForm({
-          productName: firstItem.description || '',
-          source: dealer,
-          datePurchased: purchaseDate,
-          ozt: firstItem.ozt ? firstItem.ozt.toString() : '',
-          quantity: firstItem.quantity ? firstItem.quantity.toString() : '1',
-          unitPrice: firstItem.unitPrice ? firstItem.unitPrice.toString() : '',
-          taxes: '0',
-          shipping: '0',
-          spotPrice: spotPrice,
-          premium: premium,
-        });
-
-        // Set metal tab to match the scanned item
-        setMetalTab(extractedMetal);
+        // Store scanned items and metadata
+        setScannedItems(processedItems);
+        setScannedMetadata({ purchaseDate, dealer });
 
         // Show success message
         setScanStatus('success');
-        setScanMessage(`${summary}. Review and tap "Add Purchase" to save.`);
+        setScanMessage(summary);
 
-        // Keep the modal open for user review
-        if (__DEV__) console.log(`✅ Pre-filled form with scanned data`);
+        // Close the add modal and show preview modal
+        setShowAddModal(false);
+        setShowScannedItemsPreview(true);
 
-        // If multiple items, warn the user
-        if (items.length > 1) {
-          setTimeout(() => {
-            Alert.alert(
-              'Multiple Items Found',
-              `Found ${items.length} items on receipt. The first item has been pre-filled. You'll need to add the others manually.`,
-              [{ text: 'OK' }]
-            );
-          }, 500);
-        }
+        if (__DEV__) console.log(`✅ Processed ${processedItems.length} items for preview`);
       } else {
         if (__DEV__) console.log('⚠️ Server returned success=false or no items found');
         setScanStatus('error');
@@ -991,6 +989,96 @@ export default function App() {
     } catch (error) {
       console.error('❌ Confirm import error:', error);
       Alert.alert('Import Failed', error.message);
+    }
+  };
+
+  // Add all scanned items at once
+  const confirmScannedItems = () => {
+    try {
+      let silverCount = 0;
+      let goldCount = 0;
+
+      scannedItems.forEach((item, index) => {
+        const newItem = {
+          id: Date.now() + index,
+          productName: item.productName,
+          source: item.source,
+          datePurchased: item.datePurchased,
+          ozt: item.ozt,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          taxes: item.taxes,
+          shipping: item.shipping,
+          spotPrice: item.spotPrice,
+          premium: item.premium,
+        };
+
+        if (item.metal === 'silver') {
+          setSilverItems(prev => [...prev, newItem]);
+          silverCount++;
+        } else {
+          setGoldItems(prev => [...prev, newItem]);
+          goldCount++;
+        }
+      });
+
+      // Haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      Alert.alert(
+        'Items Added Successfully',
+        `Added ${scannedItems.length} item${scannedItems.length > 1 ? 's' : ''} from receipt:\n${silverCount} Silver, ${goldCount} Gold`,
+        [{ text: 'Great!', onPress: () => {
+          setShowScannedItemsPreview(false);
+          setScannedItems([]);
+          setScannedMetadata({ purchaseDate: '', dealer: '' });
+          setMetalTab(silverCount > 0 && goldCount > 0 ? 'both' : silverCount > 0 ? 'silver' : 'gold');
+          setTab('holdings');
+        }}]
+      );
+    } catch (error) {
+      console.error('❌ Add scanned items error:', error);
+      Alert.alert('Add Failed', error.message);
+    }
+  };
+
+  // Add a single scanned item and go to next or close
+  const addScannedItemIndividually = (index) => {
+    const item = scannedItems[index];
+    const newItem = {
+      id: Date.now(),
+      productName: item.productName,
+      source: item.source,
+      datePurchased: item.datePurchased,
+      ozt: item.ozt,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      taxes: item.taxes,
+      shipping: item.shipping,
+      spotPrice: item.spotPrice,
+      premium: item.premium,
+    };
+
+    if (item.metal === 'silver') {
+      setSilverItems(prev => [...prev, newItem]);
+    } else {
+      setGoldItems(prev => [...prev, newItem]);
+    }
+
+    // Remove this item from scannedItems
+    const remainingItems = scannedItems.filter((_, i) => i !== index);
+    setScannedItems(remainingItems);
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // If no more items, close the modal
+    if (remainingItems.length === 0) {
+      Alert.alert('All Items Added', 'All scanned items have been added to your holdings!', [
+        { text: 'View Holdings', onPress: () => {
+          setShowScannedItemsPreview(false);
+          setTab('holdings');
+        }}
+      ]);
     }
   };
 
@@ -1905,6 +1993,91 @@ export default function App() {
         onClose={() => setShowPaywallModal(false)}
         onPurchaseSuccess={checkEntitlements}
       />
+
+      {/* Scanned Items Preview Modal */}
+      <ModalWrapper
+        visible={showScannedItemsPreview}
+        onClose={() => {
+          setShowScannedItemsPreview(false);
+          setScannedItems([]);
+          setScannedMetadata({ purchaseDate: '', dealer: '' });
+        }}
+        title="Receipt Scanned"
+      >
+        <View style={{ marginBottom: 16 }}>
+          <Text style={{ color: colors.success, fontSize: 18, fontWeight: '600', marginBottom: 4 }}>
+            ✅ Found {scannedItems.length} Item{scannedItems.length > 1 ? 's' : ''}
+          </Text>
+          {scannedMetadata.dealer && (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Dealer: {scannedMetadata.dealer}</Text>
+          )}
+          {scannedMetadata.purchaseDate && (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Date: {scannedMetadata.purchaseDate}</Text>
+          )}
+        </View>
+
+        <ScrollView style={{ maxHeight: 400 }}>
+          {scannedItems.map((item, index) => {
+            const itemColor = item.metal === 'silver' ? colors.silver : colors.gold;
+            const totalValue = item.unitPrice * item.quantity;
+
+            return (
+              <View key={index} style={[styles.card, { marginBottom: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: itemColor }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{item.productName}</Text>
+                    <Text style={{ color: itemColor, fontSize: 12, marginTop: 2 }}>
+                      {item.metal.toUpperCase()} • {item.ozt} oz{item.quantity > 1 ? ` • Qty: ${item.quantity}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.success, fontWeight: '600', fontSize: 16 }}>
+                    ${totalValue.toFixed(2)}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    ${item.unitPrice.toFixed(2)} per item
+                  </Text>
+                  {item.spotPrice > 0 && (
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Spot: ${item.spotPrice.toFixed(2)}
+                    </Text>
+                  )}
+                </View>
+
+                {item.premium !== 0 && (
+                  <Text style={{ color: item.premium > 0 ? colors.gold : colors.error, fontSize: 11, marginTop: 2 }}>
+                    Premium: ${item.premium.toFixed(2)}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        <View style={{ marginTop: 16 }}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.success, marginBottom: 8 }]}
+            onPress={confirmScannedItems}
+          >
+            <Text style={{ color: '#000', fontWeight: '600', fontSize: 16 }}>
+              ✅ Add All {scannedItems.length} Item{scannedItems.length > 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.buttonOutline]}
+            onPress={() => {
+              setShowScannedItemsPreview(false);
+              setScannedItems([]);
+              setScannedMetadata({ purchaseDate: '', dealer: '' });
+            }}
+          >
+            <Text style={{ color: colors.text }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </ModalWrapper>
 
       {/* Import Preview Modal */}
       <ModalWrapper
