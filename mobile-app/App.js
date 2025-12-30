@@ -1082,6 +1082,35 @@ export default function App() {
     }
   };
 
+  // Edit a scanned item before adding
+  const editScannedItem = (index) => {
+    const item = scannedItems[index];
+
+    // Pre-fill form with scanned item data
+    setForm({
+      productName: item.productName,
+      source: item.source,
+      datePurchased: item.datePurchased,
+      ozt: item.ozt.toString(),
+      quantity: item.quantity.toString(),
+      unitPrice: item.unitPrice.toString(),
+      taxes: item.taxes.toString(),
+      shipping: item.shipping.toString(),
+      spotPrice: item.spotPrice.toString(),
+      premium: item.premium.toString(),
+    });
+
+    // Set metal tab
+    setMetalTab(item.metal);
+
+    // Store the index so we can update it after editing
+    setEditingItem({ ...item, scannedIndex: index });
+
+    // Close preview modal and open edit modal
+    setShowScannedItemsPreview(false);
+    setShowAddModal(true);
+  };
+
   // ============================================
   // CRUD OPERATIONS
   // ============================================
@@ -1103,6 +1132,26 @@ export default function App() {
       premium: parseFloat(form.premium) || 0,
     };
 
+    // Check if editing a scanned item
+    if (editingItem && editingItem.scannedIndex !== undefined) {
+      // Update the scanned item and return to preview
+      const updatedItem = {
+        ...item,
+        metal: metalTab,
+      };
+
+      const updatedScannedItems = [...scannedItems];
+      updatedScannedItems[editingItem.scannedIndex] = updatedItem;
+      setScannedItems(updatedScannedItems);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      resetForm();
+      setShowAddModal(false);
+      setShowScannedItemsPreview(true);
+      return;
+    }
+
+    // Normal add/edit flow for holdings
     if (metalTab === 'silver') {
       if (editingItem) {
         setSilverItems(prev => prev.map(i => i.id === editingItem.id ? item : i));
@@ -1510,23 +1559,41 @@ export default function App() {
                 {sortItems(items, metalTab).map(item => {
                   const itemPremiumPct = calculatePremiumPercent(item.premium, item.unitPrice);
                   return (
-                    <TouchableOpacity key={item.id} style={styles.itemCard} onPress={() => viewItemDetail(item, metalTab)} onLongPress={() => deleteItem(item.id, metalTab)}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.itemTitle}>{item.productName}</Text>
-                        {item.datePurchased && (
-                          <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
-                        )}
-                        <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
-                        <Text style={[styles.itemSubtitle, { color: colors.gold }]}>
-                          Premium: ${formatCurrency(item.premium * item.quantity)}
-                          {itemPremiumPct > 0 && <Text style={{ fontSize: 11 }}> (+{itemPremiumPct.toFixed(1)}%)</Text>}
-                        </Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[styles.itemValue, { color: currentColor }]}>${formatCurrency(item.ozt * item.quantity * spot)}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
-                      </View>
-                    </TouchableOpacity>
+                    <View key={item.id} style={styles.itemCard}>
+                      <TouchableOpacity
+                        style={{ flex: 1, flexDirection: 'row' }}
+                        onPress={() => viewItemDetail(item, metalTab)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.itemTitle}>{item.productName}</Text>
+                          {item.datePurchased && (
+                            <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
+                          )}
+                          <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
+                          <Text style={[styles.itemSubtitle, { color: colors.gold }]}>
+                            Premium: ${formatCurrency(item.premium * item.quantity)}
+                            {itemPremiumPct > 0 && <Text style={{ fontSize: 11 }}> (+{itemPremiumPct.toFixed(1)}%)</Text>}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={[styles.itemValue, { color: currentColor }]}>${formatCurrency(item.ozt * item.quantity * spot)}</Text>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => deleteItem(item.id, metalTab)}
+                        style={{
+                          padding: 8,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          marginLeft: 8,
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={{ fontSize: 20 }}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
                   );
                 })}
 
@@ -1550,23 +1617,41 @@ export default function App() {
                     {sortItems(silverItems, 'silver').map(item => {
                       const itemPremiumPct = calculatePremiumPercent(item.premium, item.unitPrice);
                       return (
-                        <TouchableOpacity key={item.id} style={styles.itemCard} onPress={() => viewItemDetail(item, 'silver')} onLongPress={() => deleteItem(item.id, 'silver')}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.itemTitle}>{item.productName}</Text>
-                            {item.datePurchased && (
-                              <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
-                            )}
-                            <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
-                            <Text style={[styles.itemSubtitle, { color: colors.gold }]}>
-                              Premium: ${formatCurrency(item.premium * item.quantity)}
-                              {itemPremiumPct > 0 && <Text style={{ fontSize: 11 }}> (+{itemPremiumPct.toFixed(1)}%)</Text>}
-                            </Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={[styles.itemValue, { color: colors.silver }]}>${formatCurrency(item.ozt * item.quantity * silverSpot)}</Text>
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
-                          </View>
-                        </TouchableOpacity>
+                        <View key={item.id} style={styles.itemCard}>
+                          <TouchableOpacity
+                            style={{ flex: 1, flexDirection: 'row' }}
+                            onPress={() => viewItemDetail(item, 'silver')}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.itemTitle}>{item.productName}</Text>
+                              {item.datePurchased && (
+                                <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
+                              )}
+                              <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
+                              <Text style={[styles.itemSubtitle, { color: colors.gold }]}>
+                                Premium: ${formatCurrency(item.premium * item.quantity)}
+                                {itemPremiumPct > 0 && <Text style={{ fontSize: 11 }}> (+{itemPremiumPct.toFixed(1)}%)</Text>}
+                              </Text>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={[styles.itemValue, { color: colors.silver }]}>${formatCurrency(item.ozt * item.quantity * silverSpot)}</Text>
+                              <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteItem(item.id, 'silver')}
+                            style={{
+                              padding: 8,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              marginLeft: 8,
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Text style={{ fontSize: 20 }}>🗑️</Text>
+                          </TouchableOpacity>
+                        </View>
                       );
                     })}
                   </>
@@ -1583,23 +1668,41 @@ export default function App() {
                     {sortItems(goldItems, 'gold').map(item => {
                       const itemPremiumPct = calculatePremiumPercent(item.premium, item.unitPrice);
                       return (
-                        <TouchableOpacity key={item.id} style={styles.itemCard} onPress={() => viewItemDetail(item, 'gold')} onLongPress={() => deleteItem(item.id, 'gold')}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.itemTitle}>{item.productName}</Text>
-                            {item.datePurchased && (
-                              <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
-                            )}
-                            <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
-                            <Text style={[styles.itemSubtitle, { color: colors.gold }]}>
-                              Premium: ${formatCurrency(item.premium * item.quantity)}
-                              {itemPremiumPct > 0 && <Text style={{ fontSize: 11 }}> (+{itemPremiumPct.toFixed(1)}%)</Text>}
-                            </Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={[styles.itemValue, { color: colors.gold }]}>${formatCurrency(item.ozt * item.quantity * goldSpot)}</Text>
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
-                          </View>
-                        </TouchableOpacity>
+                        <View key={item.id} style={styles.itemCard}>
+                          <TouchableOpacity
+                            style={{ flex: 1, flexDirection: 'row' }}
+                            onPress={() => viewItemDetail(item, 'gold')}
+                            activeOpacity={0.7}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.itemTitle}>{item.productName}</Text>
+                              {item.datePurchased && (
+                                <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
+                              )}
+                              <Text style={styles.itemSubtitle}>{item.quantity}x @ ${formatCurrency(item.unitPrice)} • {(item.ozt * item.quantity).toFixed(2)} oz</Text>
+                              <Text style={[styles.itemSubtitle, { color: colors.gold }]}>
+                                Premium: ${formatCurrency(item.premium * item.quantity)}
+                                {itemPremiumPct > 0 && <Text style={{ fontSize: 11 }}> (+{itemPremiumPct.toFixed(1)}%)</Text>}
+                              </Text>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={[styles.itemValue, { color: colors.gold }]}>${formatCurrency(item.ozt * item.quantity * goldSpot)}</Text>
+                              <Text style={{ color: colors.muted, fontSize: 11 }}>melt</Text>
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteItem(item.id, 'gold')}
+                            style={{
+                              padding: 8,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              marginLeft: 8,
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Text style={{ fontSize: 20 }}>🗑️</Text>
+                          </TouchableOpacity>
+                        </View>
                       );
                     })}
                   </>
@@ -2051,6 +2154,20 @@ export default function App() {
                     Premium: ${item.premium.toFixed(2)}
                   </Text>
                 )}
+
+                <TouchableOpacity
+                  style={{
+                    marginTop: 8,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    backgroundColor: 'rgba(251,191,36,0.2)',
+                    borderRadius: 6,
+                    alignSelf: 'flex-start',
+                  }}
+                  onPress={() => editScannedItem(index)}
+                >
+                  <Text style={{ color: colors.gold, fontSize: 12, fontWeight: '600' }}>✏️ Edit</Text>
+                </TouchableOpacity>
               </View>
             );
           })}
@@ -2062,7 +2179,9 @@ export default function App() {
             onPress={confirmScannedItems}
           >
             <Text style={{ color: '#000', fontWeight: '600', fontSize: 16 }}>
-              ✅ Add All {scannedItems.length} Item{scannedItems.length > 1 ? 's' : ''}
+              {scannedItems.length === 1
+                ? '✅ Add Item'
+                : `✅ Add All ${scannedItems.length} Items`}
             </Text>
           </TouchableOpacity>
 
