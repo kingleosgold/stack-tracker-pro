@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   Alert, Modal, Platform, SafeAreaView, StatusBar, ActivityIndicator,
-  Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Dimensions,
+  Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Dimensions, AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -463,6 +463,60 @@ export default function App() {
     checkAndUpdateMidnightSnapshot();
   }, [isAuthenticated, totalMeltValue, midnightDate]);
 
+  // Auto-refresh spot prices every 1 minute (when app is active)
+  useEffect(() => {
+    let priceRefreshInterval = null;
+
+    const startPriceRefresh = () => {
+      // Clear any existing interval
+      if (priceRefreshInterval) {
+        clearInterval(priceRefreshInterval);
+      }
+
+      // Fetch prices every 60 seconds (1 minute)
+      priceRefreshInterval = setInterval(() => {
+        if (isAuthenticated) {
+          if (__DEV__) console.log('🔄 Auto-refreshing spot prices (1-min interval)...');
+          fetchSpotPrices(true); // silent = true (no loading indicator)
+        }
+      }, 60000); // 60,000ms = 1 minute
+    };
+
+    const stopPriceRefresh = () => {
+      if (priceRefreshInterval) {
+        clearInterval(priceRefreshInterval);
+        priceRefreshInterval = null;
+        if (__DEV__) console.log('⏸️  Paused auto-refresh (app in background)');
+      }
+    };
+
+    // Listen to app state changes
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - fetch prices immediately, then start auto-refresh
+        if (__DEV__) console.log('▶️  App active - fetching prices and starting auto-refresh');
+        if (isAuthenticated) {
+          fetchSpotPrices(true); // Fetch immediately on foreground
+        }
+        startPriceRefresh();
+      } else {
+        // App went to background - stop auto-refresh
+        stopPriceRefresh();
+      }
+    });
+
+    // Start auto-refresh when component mounts (if authenticated)
+    if (isAuthenticated) {
+      startPriceRefresh();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      stopPriceRefresh();
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
+
   // Check entitlements function (can be called after purchase)
   const checkEntitlements = async () => {
     const isGold = await hasGoldEntitlement();
@@ -644,8 +698,8 @@ export default function App() {
   // API CALLS
   // ============================================
 
-  const fetchSpotPrices = async () => {
-    setPriceSource('loading...');
+  const fetchSpotPrices = async (silent = false) => {
+    if (!silent) setPriceSource('loading...');
     try {
       if (__DEV__) console.log('📡 Fetching spot prices from:', `${API_BASE_URL}/api/spot-prices`);
 
