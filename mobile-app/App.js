@@ -421,6 +421,28 @@ export default function App() {
 
   useEffect(() => { authenticate(); }, []);
 
+  // Check entitlements function (can be called after purchase)
+  const checkEntitlements = async () => {
+    try {
+      const customerInfo = await Purchases.getCustomerInfo();
+      const isGold = customerInfo.entitlements.active['Gold'] !== undefined;
+      const isLifetime = customerInfo.entitlements.active['Lifetime'] !== undefined;
+      const userId = customerInfo.originalAppUserId;
+
+      if (__DEV__) console.log('📋 RevenueCat User ID:', userId);
+      if (__DEV__) console.log('🏆 Has Gold:', isGold, 'Has Lifetime:', isLifetime);
+
+      setHasGold(isGold);
+      setHasLifetimeAccess(isLifetime);
+      setRevenueCatUserId(userId);
+
+      return isGold || isLifetime;
+    } catch (error) {
+      if (__DEV__) console.log('❌ Error checking entitlements:', error);
+      return false;
+    }
+  };
+
   // Initialize RevenueCat
   useEffect(() => {
     const setupRevenueCat = async () => {
@@ -514,28 +536,6 @@ export default function App() {
       subscription.remove();
     };
   }, [isAuthenticated]);
-
-  // Check entitlements function (can be called after purchase)
-  const checkEntitlements = async () => {
-    try {
-      const customerInfo = await Purchases.getCustomerInfo();
-      const isGold = customerInfo.entitlements.active['Gold'] !== undefined;
-      const isLifetime = customerInfo.entitlements.active['Lifetime'] !== undefined;
-      const userId = customerInfo.originalAppUserId;
-
-      if (__DEV__) console.log('📋 RevenueCat User ID:', userId);
-      if (__DEV__) console.log('🏆 Has Gold:', isGold, 'Has Lifetime:', isLifetime);
-
-      setHasGold(isGold);
-      setHasLifetimeAccess(isLifetime);
-      setRevenueCatUserId(userId);
-
-      return isGold || isLifetime;
-    } catch (error) {
-      if (__DEV__) console.log('❌ Error checking entitlements:', error);
-      return false;
-    }
-  };
 
   // Free tier limit check
   const handleAddPurchase = () => {
