@@ -425,9 +425,17 @@ export default function App() {
   const checkEntitlements = async () => {
     try {
       const customerInfo = await Purchases.getCustomerInfo();
-      const isGold = customerInfo.entitlements.active['Gold'] !== undefined;
-      const isLifetime = customerInfo.entitlements.active['Lifetime'] !== undefined;
-      const userId = customerInfo.originalAppUserId;
+
+      // Safety checks for customerInfo structure
+      if (!customerInfo) {
+        if (__DEV__) console.log('❌ No customer info returned from RevenueCat');
+        return false;
+      }
+
+      const activeEntitlements = customerInfo?.entitlements?.active || {};
+      const isGold = activeEntitlements['Gold'] !== undefined;
+      const isLifetime = activeEntitlements['Lifetime'] !== undefined;
+      const userId = customerInfo?.originalAppUserId || null;
 
       if (__DEV__) console.log('📋 RevenueCat User ID:', userId);
       if (__DEV__) console.log('🏆 Has Gold:', isGold, 'Has Lifetime:', isLifetime);
@@ -449,9 +457,13 @@ export default function App() {
 
     const setupRevenueCat = async () => {
       try {
-        await initializePurchases('test_LkMLacPMbzdsKIpCuG6QgATsBnNi');
-        await checkEntitlements();
-        if (__DEV__) console.log('RevenueCat setup complete');
+        const initialized = await initializePurchases('test_LkMLacPMbzdsKIpCuG6QgATsBnNi');
+        if (initialized) {
+          await checkEntitlements();
+          if (__DEV__) console.log('RevenueCat setup complete');
+        } else {
+          if (__DEV__) console.log('RevenueCat initialization failed, skipping entitlements check');
+        }
       } catch (error) {
         console.error('RevenueCat setup failed:', error);
       }

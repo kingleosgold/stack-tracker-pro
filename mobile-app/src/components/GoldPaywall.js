@@ -61,7 +61,9 @@ const GoldPaywall = ({ visible, onClose, onPurchaseSuccess }) => {
       setPurchasing(packageToPurchase.identifier);
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
 
-      if (customerInfo.entitlements.active['Gold']) {
+      // Safety check for entitlements
+      const activeEntitlements = customerInfo?.entitlements?.active || {};
+      if (activeEntitlements['Gold']) {
         // Success haptic
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 

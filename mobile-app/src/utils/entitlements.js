@@ -12,7 +12,9 @@ import Purchases from 'react-native-purchases';
 export const hasGoldEntitlement = async () => {
   try {
     const customerInfo = await Purchases.getCustomerInfo();
-    return customerInfo.entitlements.active['Gold'] !== undefined;
+    // Safety check for entitlements
+    const activeEntitlements = customerInfo?.entitlements?.active || {};
+    return activeEntitlements['Gold'] !== undefined;
   } catch (error) {
     if (__DEV__) console.log('Error checking Gold entitlement:', error);
     return false;
@@ -26,10 +28,12 @@ export const hasGoldEntitlement = async () => {
 export const getUserEntitlements = async () => {
   try {
     const customerInfo = await Purchases.getCustomerInfo();
+    // Safety check for entitlements
+    const activeEntitlements = customerInfo?.entitlements?.active || {};
     return {
-      hasGold: customerInfo.entitlements.active['Gold'] !== undefined,
-      entitlements: customerInfo.entitlements.active,
-      originalAppUserId: customerInfo.originalAppUserId,
+      hasGold: activeEntitlements['Gold'] !== undefined,
+      entitlements: activeEntitlements,
+      originalAppUserId: customerInfo?.originalAppUserId || null,
     };
   } catch (error) {
     if (__DEV__) console.log('Error getting user entitlements:', error);
@@ -44,13 +48,16 @@ export const getUserEntitlements = async () => {
 /**
  * Initialize RevenueCat Purchases SDK
  * @param {string} apiKey - RevenueCat API key
+ * @returns {Promise<boolean>} True if initialization succeeded
  */
 export const initializePurchases = async (apiKey) => {
   try {
     await Purchases.configure({ apiKey });
     if (__DEV__) console.log('RevenueCat initialized successfully');
+    return true;
   } catch (error) {
     console.error('Failed to initialize RevenueCat:', error);
+    return false;
   }
 };
 
@@ -61,7 +68,9 @@ export const initializePurchases = async (apiKey) => {
 export const restorePurchases = async () => {
   try {
     const customerInfo = await Purchases.restorePurchases();
-    const hasGold = customerInfo.entitlements.active['Gold'] !== undefined;
+    // Safety check for entitlements
+    const activeEntitlements = customerInfo?.entitlements?.active || {};
+    const hasGold = activeEntitlements['Gold'] !== undefined;
     return hasGold;
   } catch (error) {
     console.error('Error restoring purchases:', error);
