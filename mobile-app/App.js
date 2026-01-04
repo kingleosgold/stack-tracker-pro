@@ -443,8 +443,10 @@ export default function App() {
     }
   };
 
-  // Initialize RevenueCat
+  // Initialize RevenueCat (waits for authentication)
   useEffect(() => {
+    if (!isAuthenticated) return; // Wait for auth to complete first
+
     const setupRevenueCat = async () => {
       try {
         await initializePurchases('test_LkMLacPMbzdsKIpCuG6QgATsBnNi');
@@ -455,7 +457,7 @@ export default function App() {
       }
     };
     setupRevenueCat();
-  }, []);
+  }, [isAuthenticated]); // Run when isAuthenticated changes
 
   // Daily Snapshot: Check if it's a new day and update midnight value
   useEffect(() => {
@@ -641,6 +643,12 @@ export default function App() {
 
       if (result.canceled) return;
 
+      // Safety check for assets array
+      if (!result.assets || result.assets.length === 0) {
+        Alert.alert('Error', 'No file selected');
+        return;
+      }
+
       const file = result.assets[0];
       const content = await FileSystem.readAsStringAsync(file.uri);
       const backup = JSON.parse(content);
@@ -755,6 +763,12 @@ export default function App() {
 
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (result.canceled) return;
+
+    // Safety check for assets array
+    if (!result.assets || result.assets.length === 0) {
+      Alert.alert('Error', 'No image selected');
+      return;
+    }
 
     // Increment scan count
     await incrementScanCount();
@@ -884,6 +898,13 @@ export default function App() {
 
       // Increment scan count
       await incrementScanCount();
+
+      // Safety check for assets array
+      if (!result.assets || result.assets.length === 0) {
+        Alert.alert('Error', 'No file selected');
+        setScanStatus(null);
+        return;
+      }
 
       const file = result.assets[0];
       if (__DEV__) console.log('📊 Spreadsheet selected:', file.name);
