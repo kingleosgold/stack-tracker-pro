@@ -518,14 +518,18 @@ export default function App() {
       const customerInfo = await Purchases.getCustomerInfo();
       const isGold = customerInfo.entitlements.active['Gold'] !== undefined;
       const isLifetime = customerInfo.entitlements.active['Lifetime'] !== undefined;
+      const userId = customerInfo.originalAppUserId;
+
+      if (__DEV__) console.log('📋 RevenueCat User ID:', userId);
+      if (__DEV__) console.log('🏆 Has Gold:', isGold, 'Has Lifetime:', isLifetime);
 
       setHasGold(isGold);
       setHasLifetimeAccess(isLifetime);
-      setRevenueCatUserId(customerInfo.originalAppUserId);
+      setRevenueCatUserId(userId);
 
       return isGold || isLifetime;
     } catch (error) {
-      if (__DEV__) console.log('Error checking entitlements:', error);
+      if (__DEV__) console.log('❌ Error checking entitlements:', error);
       return false;
     }
   };
@@ -1841,26 +1845,27 @@ export default function App() {
                 </View>
               )}
 
-              {revenueCatUserId && (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 6 }}>RevenueCat User ID (for support):</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ color: colors.text, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', flex: 1 }} numberOfLines={1}>
-                      {revenueCatUserId}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => {
+              <View style={{ marginTop: 16 }}>
+                <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 6 }}>RevenueCat User ID (for support):</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: colors.text, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', flex: 1 }} numberOfLines={1}>
+                    {revenueCatUserId || 'Loading...'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (revenueCatUserId) {
                         Clipboard.setString(revenueCatUserId);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                         Alert.alert('Copied', 'User ID copied to clipboard');
-                      }}
-                      style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                    >
-                      <Text style={{ color: colors.gold, fontSize: 11, fontWeight: '600' }}>Copy</Text>
-                    </TouchableOpacity>
-                  </View>
+                      }
+                    }}
+                    style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                    disabled={!revenueCatUserId}
+                  >
+                    <Text style={{ color: revenueCatUserId ? colors.gold : colors.muted, fontSize: 11, fontWeight: '600' }}>Copy</Text>
+                  </TouchableOpacity>
                 </View>
-              )}
+              </View>
             </View>
           </>
         )}
