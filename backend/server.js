@@ -833,8 +833,205 @@ app.get('/privacy', (req, res) => {
     </p>
 
     <div class="footer">
-      <p>Questions about privacy? Contact us at <a href="mailto:privacy@stacktrackerpro.com">privacy@stacktrackerpro.com</a></p>
+      <p>Questions about privacy? Contact us at <a href="mailto:stacktrackerpro@gmail.com">stacktrackerpro@gmail.com</a></p>
       <p style="margin-top: 10px;">Built with privacy in mind. Your data, your control. 🔒</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
+});
+
+// Human-readable terms of use (HTML)
+app.get('/terms', (req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Use - Stack Tracker Pro</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+    }
+    h1 {
+      font-size: 2.5em;
+      color: #111827;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    .tagline {
+      font-size: 1.2em;
+      color: #6b7280;
+      margin-bottom: 30px;
+      font-weight: 500;
+    }
+    .last-updated {
+      color: #9ca3af;
+      font-size: 0.9em;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    h2 {
+      font-size: 1.5em;
+      color: #374151;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+    p, ul {
+      color: #4b5563;
+      margin-bottom: 15px;
+      line-height: 1.7;
+    }
+    ul {
+      margin-left: 20px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    .summary {
+      background: #fef3c7;
+      border: 2px solid #fbbf24;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      font-size: 1.1em;
+      color: #78350f;
+      font-weight: 500;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #e5e7eb;
+      color: #6b7280;
+      text-align: center;
+      font-size: 0.95em;
+    }
+    a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📜 Terms of Use</h1>
+    <p class="tagline">Stack Tracker Pro - Privacy-First Precious Metals Portfolio</p>
+    <p class="last-updated">Last Updated: January 4, 2026</p>
+
+    <div class="summary">
+      By using Stack Tracker Pro, you agree to these terms. Please read them carefully.
+    </div>
+
+    <h2>1. Acceptance of Terms</h2>
+    <p>
+      By downloading, installing, or using Stack Tracker Pro ("the App"), you agree to be bound by these Terms of Use. If you do not agree to these terms, please do not use the App.
+    </p>
+
+    <h2>2. Description of Service</h2>
+    <p>
+      Stack Tracker Pro is a personal portfolio tracking application for precious metals enthusiasts. The App allows you to:
+    </p>
+    <ul>
+      <li>Track your gold, silver, and precious metals holdings</li>
+      <li>Scan receipts using AI-powered image recognition</li>
+      <li>View live spot prices for precious metals</li>
+      <li>Export your portfolio data in various formats</li>
+    </ul>
+
+    <h2>3. User Responsibilities</h2>
+    <p>You agree to:</p>
+    <ul>
+      <li>Use the App only for lawful purposes</li>
+      <li>Provide accurate information when using the App's features</li>
+      <li>Not attempt to reverse engineer, modify, or exploit the App</li>
+      <li>Not use the App to store or process illegal content</li>
+    </ul>
+
+    <h2>4. Data and Privacy</h2>
+    <p>
+      Your portfolio data is stored locally on your device. We do not collect, store, or have access to your personal portfolio information. For details on how we handle data, please review our <a href="/privacy">Privacy Policy</a>.
+    </p>
+
+    <h2>5. Subscriptions and Payments</h2>
+    <p>
+      Stack Tracker Pro offers both free and premium subscription tiers. Premium subscriptions ("Gold") are processed through Apple App Store or Google Play Store. Subscription terms, pricing, and cancellation policies are governed by the respective app store's terms.
+    </p>
+    <ul>
+      <li>Subscriptions automatically renew unless cancelled before the renewal date</li>
+      <li>You can manage and cancel subscriptions through your device's app store settings</li>
+      <li>Refunds are handled according to Apple App Store or Google Play Store policies</li>
+    </ul>
+
+    <h2>6. Disclaimer of Warranties</h2>
+    <p>
+      The App is provided "as is" without warranties of any kind. We do not guarantee:
+    </p>
+    <ul>
+      <li>The accuracy of spot prices (prices are sourced from third-party APIs)</li>
+      <li>The accuracy of AI receipt scanning results</li>
+      <li>Uninterrupted or error-free operation of the App</li>
+    </ul>
+    <p>
+      <strong>Stack Tracker Pro is not a financial advisor.</strong> The App is for informational and tracking purposes only. Always verify important financial information independently.
+    </p>
+
+    <h2>7. Limitation of Liability</h2>
+    <p>
+      To the maximum extent permitted by law, Stack Tracker Pro and its developers shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the App.
+    </p>
+
+    <h2>8. Intellectual Property</h2>
+    <p>
+      All content, features, and functionality of the App are owned by Stack Tracker Pro and are protected by copyright, trademark, and other intellectual property laws.
+    </p>
+
+    <h2>9. Changes to Terms</h2>
+    <p>
+      We may update these Terms of Use from time to time. Continued use of the App after changes constitutes acceptance of the new terms. We will update the "Last Updated" date when changes are made.
+    </p>
+
+    <h2>10. Termination</h2>
+    <p>
+      We reserve the right to terminate or suspend access to the App at any time, without prior notice, for conduct that we believe violates these terms or is harmful to other users or the App.
+    </p>
+
+    <h2>11. Contact Us</h2>
+    <p>
+      If you have questions about these Terms of Use, please contact us at <a href="mailto:stacktrackerpro@gmail.com">stacktrackerpro@gmail.com</a>.
+    </p>
+
+    <div class="footer">
+      <p>Questions? Contact us at <a href="mailto:stacktrackerpro@gmail.com">stacktrackerpro@gmail.com</a></p>
+      <p style="margin-top: 10px;">Stack Tracker Pro - Track your stack with confidence. 🪙</p>
     </div>
   </div>
 </body>
