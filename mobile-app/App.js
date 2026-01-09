@@ -1049,8 +1049,8 @@ function AppContent() {
           // Get historical spot price for this item
           let spotPrice = '';
           if (purchaseDate.length === 10) {
-            const historicalPrice = await fetchHistoricalSpot(purchaseDate, extractedMetal);
-            if (historicalPrice) spotPrice = historicalPrice.toString();
+            const result = await fetchHistoricalSpot(purchaseDate, extractedMetal);
+            if (result.price) spotPrice = result.price.toString();
           }
 
           const unitPrice = parseFloat(item.unitPrice) || 0;
@@ -2124,7 +2124,7 @@ function AppContent() {
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>About</Text>
-              <Text style={{ color: colors.muted }}>Stack Tracker Pro v1.0.0</Text>
+              <Text style={{ color: colors.muted }}>Stack Tracker Pro v1.0.1</Text>
               <Text style={{ color: colors.gold, fontStyle: 'italic', marginTop: 8 }}>"We CAN'T access your data."</Text>
 
               {hasLifetimeAccess && (
@@ -2135,30 +2135,6 @@ function AppContent() {
                 </View>
               )}
 
-              {/* Support ID */}
-              <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Support ID</Text>
-                <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 8 }}>Share this with support if you need help with your account</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ color: colors.text, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', flex: 1 }} numberOfLines={1}>
-                    {revenueCatUserId || 'Loading...'}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (revenueCatUserId) {
-                        Clipboard.setString(revenueCatUserId);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        Alert.alert('Copied', 'Support ID copied to clipboard');
-                      }
-                    }}
-                    style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                    disabled={!revenueCatUserId}
-                  >
-                    <Text style={{ color: revenueCatUserId ? colors.gold : colors.muted, fontSize: 11, fontWeight: '600' }}>Copy</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
               {/* Legal Links */}
               <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'center', gap: 16 }}>
                 <TouchableOpacity onPress={() => Linking.openURL('https://stack-tracker-pro-production.up.railway.app/privacy')}>
@@ -2166,6 +2142,32 @@ function AppContent() {
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => Linking.openURL('https://stack-tracker-pro-production.up.railway.app/terms')}>
                   <Text style={{ color: colors.muted, fontSize: 13, textDecorationLine: 'underline' }}>Terms of Use</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Advanced Section */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Advanced</Text>
+
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 4 }}>Support ID</Text>
+              <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 8 }}>Share this with support if you need help with your account</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', flex: 1 }} numberOfLines={1}>
+                  {revenueCatUserId || 'Loading...'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (revenueCatUserId) {
+                      Clipboard.setString(revenueCatUserId);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('Copied', 'Support ID copied to clipboard');
+                    }
+                  }}
+                  style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                  disabled={!revenueCatUserId}
+                >
+                  <Text style={{ color: revenueCatUserId ? colors.gold : colors.muted, fontSize: 11, fontWeight: '600' }}>Copy</Text>
                 </TouchableOpacity>
               </View>
             </View>
