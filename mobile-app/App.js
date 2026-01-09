@@ -884,9 +884,6 @@ function AppContent() {
       return;
     }
 
-    // Increment scan count
-    await incrementScanCount();
-
     setScanStatus('scanning');
     setScanMessage('Analyzing receipt...');
 
@@ -909,6 +906,9 @@ function AppContent() {
 
       // Handle multi-item receipt response
       if (data.success && data.items && data.items.length > 0) {
+        // Only increment scan count on successful extraction
+        await incrementScanCount();
+
         const items = data.items;
         const purchaseDate = data.purchaseDate || '';
         const dealer = data.dealer || '';
@@ -981,14 +981,14 @@ function AppContent() {
       } else {
         if (__DEV__) console.log('⚠️ Server returned success=false or no items found');
         setScanStatus('error');
-        setScanMessage('Could not analyze receipt.');
+        setScanMessage("Couldn't read receipt. This scan didn't count against your limit.");
       }
     } catch (error) {
       console.error('❌ Scan receipt error:', error);
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       setScanStatus('error');
-      setScanMessage('Network error: ' + error.message);
+      setScanMessage("Scan failed. This didn't count against your limit.");
     }
 
     setTimeout(() => { setScanStatus(null); setScanMessage(''); }, 5000);
@@ -1009,9 +1009,6 @@ function AppContent() {
       });
 
       if (result.canceled) return;
-
-      // Increment scan count
-      await incrementScanCount();
 
       // Safety check for assets array
       if (!result.assets || result.assets.length === 0) {
@@ -1041,7 +1038,7 @@ function AppContent() {
       const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
       if (rows.length < 2) {
-        Alert.alert('Invalid Spreadsheet', 'Spreadsheet must have at least a header row and one data row.');
+        Alert.alert('Invalid Spreadsheet', "Spreadsheet must have at least a header row and one data row. This didn't count against your scan limit.");
         return;
       }
 
@@ -1069,7 +1066,7 @@ function AppContent() {
       if (colMap.productName === -1 || colMap.metal === -1) {
         Alert.alert(
           'Missing Columns',
-          'Spreadsheet must have at least "Product Name" and "Metal Type" columns.\n\nAccepted column names:\n- Product: product, name, item, description\n- Metal: metal, type'
+          "Spreadsheet must have at least \"Product Name\" and \"Metal Type\" columns. This didn't count against your scan limit.\n\nAccepted column names:\n- Product: product, name, item, description\n- Metal: metal, type"
         );
         return;
       }
@@ -1101,9 +1098,12 @@ function AppContent() {
       }
 
       if (parsedData.length === 0) {
-        Alert.alert('No Data Found', 'No valid items found in spreadsheet. Make sure you have Product Name and Metal Type columns.');
+        Alert.alert('No Data Found', "No valid items found in spreadsheet. This didn't count against your scan limit.\n\nMake sure you have Product Name and Metal Type columns.");
         return;
       }
+
+      // Only increment scan count on successful parsing
+      await incrementScanCount();
 
       // Show preview
       setImportData(parsedData);
@@ -1112,7 +1112,7 @@ function AppContent() {
       if (__DEV__) console.log(`📊 Parsed ${parsedData.length} items from spreadsheet`);
     } catch (error) {
       console.error('❌ Import error:', error);
-      Alert.alert('Import Failed', `Could not import spreadsheet: ${error.message}`);
+      Alert.alert('Import Failed', `Could not import spreadsheet. This didn't count against your scan limit.\n\n${error.message}`);
     }
   };
 
