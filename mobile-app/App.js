@@ -697,6 +697,26 @@ function AppContent() {
     await AsyncStorage.setItem('stack_scan_count', newCount.toString());
   };
 
+  const resetScanCount = async () => {
+    Alert.alert(
+      'Reset Scan Count',
+      'Are you sure you want to reset your scan count to 0? This is intended for testing purposes.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            setScanCount(0);
+            await AsyncStorage.setItem('stack_scan_count', '0');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Reset Complete', 'Scan count has been reset to 0.');
+          }
+        }
+      ]
+    );
+  };
+
   const canScan = () => {
     if (hasGold || hasLifetimeAccess) return true; // Gold tier or lifetime access has unlimited scans
     return scanCount < FREE_SCAN_LIMIT;
@@ -2024,6 +2044,26 @@ function AppContent() {
               <TouchableOpacity style={styles.statRow} onPress={fetchSpotPrices}>
                 <Text style={{ color: colors.text }}>🔄 Refresh Prices</Text>
               </TouchableOpacity>
+
+              {/* Scan Count - only show for free users */}
+              {!hasGold && !hasLifetimeAccess && (
+                <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View>
+                      <Text style={{ color: colors.text, fontSize: 14 }}>📷 Scan Usage</Text>
+                      <Text style={{ color: scanCount >= FREE_SCAN_LIMIT ? colors.error : colors.muted, fontSize: 12, marginTop: 2 }}>
+                        {scanCount}/{FREE_SCAN_LIMIT} scans used
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={resetScanCount}
+                      style={{ backgroundColor: 'rgba(239,68,68,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                    >
+                      <Text style={{ color: colors.error, fontSize: 12, fontWeight: '600' }}>Reset</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
 
             <View style={styles.card}>
