@@ -882,17 +882,32 @@ function AppContent() {
   // RECEIPT SCANNING
   // ============================================
 
-  const scanReceipt = async () => {
+  const scanReceipt = async (source = 'gallery') => {
     // Check scan limit first
     if (!checkScanLimit()) return;
 
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photos.');
-      return;
+    let result;
+
+    if (source === 'camera') {
+      // Request camera permission
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your camera to take photos of receipts.');
+        return;
+      }
+
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+    } else {
+      // Request media library permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photos.');
+        return;
+      }
+
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (result.canceled) return;
 
     // Safety check for assets array
@@ -2146,9 +2161,14 @@ function AppContent() {
 
                   <View style={[styles.card, { backgroundColor: 'rgba(148,163,184,0.1)' }]}>
                     <Text style={{ color: colors.text, fontWeight: '600', marginBottom: 12 }}>📷 AI Receipt Scanner</Text>
-                    <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver }]} onPress={scanReceipt}>
-                      <Text style={{ color: '#000' }}>🖼 Scan from Gallery</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver, flex: 1 }]} onPress={() => scanReceipt('camera')}>
+                        <Text style={{ color: '#000' }}>📷 Take Photo</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver, flex: 1 }]} onPress={() => scanReceipt('gallery')}>
+                        <Text style={{ color: '#000' }}>🖼️ Upload Photo</Text>
+                      </TouchableOpacity>
+                    </View>
                     {!hasGold && !hasLifetimeAccess && (
                       <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
                         {scanCount >= FREE_SCAN_LIMIT ? (
