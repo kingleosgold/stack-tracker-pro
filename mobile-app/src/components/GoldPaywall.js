@@ -187,7 +187,7 @@ const GoldPaywall = ({ visible, onClose, onPurchaseSuccess }) => {
             <Feature icon="∞" text="Unlimited gold & silver items" />
             <Feature icon="📷" text="AI receipt scanning" />
             <Feature icon="📊" text="Advanced analytics" />
-            <Feature icon="📥" text="Cloud backup & sync" />
+            <Feature icon="☁️" text="iCloud sync across devices" />
           </View>
 
           {/* Packages */}

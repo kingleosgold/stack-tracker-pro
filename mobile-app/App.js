@@ -571,9 +571,12 @@ function AppContent() {
     }
   };
 
+  // Check if user has Gold access (Gold subscription or Lifetime)
+  const hasGoldAccess = hasGold || hasLifetimeAccess;
+
   // Save holdings to iCloud
   const syncToCloud = async (silver = silverItems, gold = goldItems) => {
-    if (!iCloudSyncEnabled || !iCloudAvailable || Platform.OS !== 'ios') return;
+    if (!hasGoldAccess || !iCloudSyncEnabled || !iCloudAvailable || Platform.OS !== 'ios') return;
 
     try {
       setICloudSyncing(true);
@@ -699,9 +702,9 @@ function AppContent() {
     }
   }, []);
 
-  // Sync to cloud when holdings change (debounced)
+  // Sync to cloud when holdings change (debounced) - Gold/Lifetime only
   useEffect(() => {
-    if (!isAuthenticated || !dataLoaded || !iCloudSyncEnabled) return;
+    if (!isAuthenticated || !dataLoaded || !iCloudSyncEnabled || !hasGoldAccess) return;
 
     updateLocalTimestamp();
     const timeout = setTimeout(() => {
@@ -709,7 +712,7 @@ function AppContent() {
     }, 2000); // Debounce 2 seconds
 
     return () => clearTimeout(timeout);
-  }, [silverItems, goldItems, iCloudSyncEnabled, isAuthenticated, dataLoaded]);
+  }, [silverItems, goldItems, iCloudSyncEnabled, isAuthenticated, dataLoaded, hasGoldAccess]);
 
   useEffect(() => {
     // Only save after initial data has been loaded to prevent overwriting with empty arrays
@@ -2274,69 +2277,101 @@ function AppContent() {
             {Platform.OS === 'ios' && (
               <View style={styles.card}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={styles.cardTitle}>☁️ iCloud Sync</Text>
-                  {iCloudSyncing && <ActivityIndicator size="small" color={colors.gold} />}
-                </View>
-                <Text style={{ color: colors.muted, marginBottom: 12 }}>
-                  {iCloudAvailable
-                    ? 'Automatically sync holdings across your Apple devices'
-                    : 'Sign in to iCloud in Settings to enable sync'}
-                </Text>
-
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    backgroundColor: '#27272a',
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: 12,
-                    opacity: iCloudAvailable ? 1 : 0.5,
-                  }}
-                  onPress={() => toggleiCloudSync(!iCloudSyncEnabled)}
-                  disabled={!iCloudAvailable}
-                >
-                  <Text style={{ color: colors.text, fontWeight: '500' }}>Enable iCloud Sync</Text>
-                  <View style={{
-                    width: 44,
-                    height: 24,
-                    borderRadius: 12,
-                    backgroundColor: iCloudSyncEnabled ? colors.success : '#52525b',
-                    justifyContent: 'center',
-                    padding: 2,
-                  }}>
-                    <View style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: '#fff',
-                      alignSelf: iCloudSyncEnabled ? 'flex-end' : 'flex-start',
-                    }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.cardTitle}>☁️ iCloud Sync</Text>
+                    {!hasGoldAccess && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
+                        <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '600' }}>🔒 GOLD</Text>
+                      </View>
+                    )}
                   </View>
-                </TouchableOpacity>
+                  {iCloudSyncing && hasGoldAccess && <ActivityIndicator size="small" color={colors.gold} />}
+                </View>
 
-                {iCloudSyncEnabled && (
+                {!hasGoldAccess ? (
                   <>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {lastSyncTime
-                          ? `Last synced: ${new Date(lastSyncTime).toLocaleString()}`
-                          : 'Not synced yet'}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={triggerManualSync}
-                        style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                        disabled={iCloudSyncing}
-                      >
-                        <Text style={{ color: colors.gold, fontWeight: '500', fontSize: 12 }}>
-                          {iCloudSyncing ? 'Syncing...' : 'Sync Now'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={{ color: colors.muted, fontSize: 11, fontStyle: 'italic' }}>
-                      Changes sync automatically when you add or edit holdings
+                    <Text style={{ color: colors.muted, marginBottom: 12 }}>
+                      Upgrade to Gold to sync your portfolio across all your Apple devices
                     </Text>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: colors.gold,
+                        padding: 12,
+                        borderRadius: 8,
+                        gap: 8,
+                      }}
+                      onPress={() => setShowPaywallModal(true)}
+                    >
+                      <Text style={{ color: '#000', fontWeight: '600' }}>Unlock iCloud Sync</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ color: colors.muted, marginBottom: 12 }}>
+                      {iCloudAvailable
+                        ? 'Automatically sync holdings across your Apple devices'
+                        : 'Sign in to iCloud in Settings to enable sync'}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: '#27272a',
+                        padding: 12,
+                        borderRadius: 8,
+                        marginBottom: 12,
+                        opacity: iCloudAvailable ? 1 : 0.5,
+                      }}
+                      onPress={() => toggleiCloudSync(!iCloudSyncEnabled)}
+                      disabled={!iCloudAvailable}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: '500' }}>Enable iCloud Sync</Text>
+                      <View style={{
+                        width: 44,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: iCloudSyncEnabled ? colors.success : '#52525b',
+                        justifyContent: 'center',
+                        padding: 2,
+                      }}>
+                        <View style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 10,
+                          backgroundColor: '#fff',
+                          alignSelf: iCloudSyncEnabled ? 'flex-end' : 'flex-start',
+                        }} />
+                      </View>
+                    </TouchableOpacity>
+
+                    {iCloudSyncEnabled && (
+                      <>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
+                            {lastSyncTime
+                              ? `Last synced: ${new Date(lastSyncTime).toLocaleString()}`
+                              : 'Not synced yet'}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={triggerManualSync}
+                            style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
+                            disabled={iCloudSyncing}
+                          >
+                            <Text style={{ color: colors.gold, fontWeight: '500', fontSize: 12 }}>
+                              {iCloudSyncing ? 'Syncing...' : 'Sync Now'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: colors.muted, fontSize: 11, fontStyle: 'italic' }}>
+                          Changes sync automatically when you add or edit holdings
+                        </Text>
+                      </>
+                    )}
                   </>
                 )}
               </View>
@@ -2820,9 +2855,15 @@ function AppContent() {
           <Text style={styles.cardTitle}>Using Multiple Devices</Text>
           {Platform.OS === 'ios' ? (
             <>
-              <Text style={styles.privacyItem}>• Enable iCloud Sync in Settings to automatically sync across your Apple devices</Text>
-              <Text style={[styles.privacyItem, { marginTop: 8 }]}>• All your iPhones and iPads signed into the same iCloud account will stay in sync</Text>
-              <Text style={[styles.privacyItem, { marginTop: 8, color: colors.muted, fontSize: 12 }]}>Alternatively, use Manual Backup/Restore for cross-platform transfers</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <Text style={styles.privacyItem}>• iCloud Sync</Text>
+                <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '600' }}>GOLD</Text>
+                </View>
+              </View>
+              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4 }]}>Automatically sync holdings across all your Apple devices</Text>
+              <Text style={[styles.privacyItem, { marginTop: 12 }]}>• Manual Backup/Restore (all users)</Text>
+              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.muted, fontSize: 12 }]}>Export/import for cross-platform or offline backup</Text>
             </>
           ) : (
             <>
