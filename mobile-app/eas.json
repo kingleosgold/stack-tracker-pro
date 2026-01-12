@@ -1,13 +1,15 @@
 {
   "cli": {
-    "version": ">= 5.9.0"
+    "version": ">= 5.9.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "simulator": true
+        "simulator": false,
+        "resourceClass": "m-medium"
       },
       "android": {
         "buildType": "apk"
@@ -48,9 +50,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-asc-app-id",
-        "appleTeamId": "your-team-id"
+        "appleId": "jon.mancini@icloud.com",
+        "ascAppId": "6757343766",
+        "appleTeamId": "3BKELS5FG9"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
