@@ -1275,16 +1275,46 @@ function AppContent() {
             if (result.price) spotPrice = result.price.toString();
           }
 
-          const unitPrice = parseFloat(item.unitPrice) || 0;
+          let unitPrice = parseFloat(item.unitPrice) || 0;
           const ozt = parseFloat(item.ozt) || 0;
           const spotNum = parseFloat(spotPrice) || 0;
+          const qty = parseInt(item.quantity) || 1;
+          const extPrice = item.extPrice ? parseFloat(item.extPrice) : unitPrice * qty;
+
+          // Spot price sanity check - precious metals almost never sell below spot
+          let priceWarning = null;
+          if (spotNum > 0 && ozt > 0) {
+            const minExpectedPrice = spotNum * ozt;
+
+            if (unitPrice < minExpectedPrice) {
+              // Price is suspiciously low - try recalculating from ext price
+              if (__DEV__) console.log(`⚠️ Price sanity check: $${unitPrice} < spot value $${minExpectedPrice.toFixed(2)}`);
+
+              if (extPrice > 0 && qty > 0) {
+                const recalculatedPrice = Math.round((extPrice / qty) * 100) / 100;
+                if (__DEV__) console.log(`   Trying extPrice/qty: $${extPrice} / ${qty} = $${recalculatedPrice}`);
+
+                if (recalculatedPrice >= minExpectedPrice) {
+                  // Recalculated price makes sense, use it
+                  if (__DEV__) console.log(`   ✓ Using recalculated price: $${recalculatedPrice}`);
+                  unitPrice = recalculatedPrice;
+                } else {
+                  // Still below spot - flag for manual review
+                  priceWarning = `Price $${unitPrice.toFixed(2)} is below spot value ($${minExpectedPrice.toFixed(2)}) - please verify`;
+                  if (__DEV__) console.log(`   ⚠️ Still below spot, adding warning`);
+                }
+              } else {
+                // No ext price to verify with - flag for manual review
+                priceWarning = `Price $${unitPrice.toFixed(2)} is below spot value ($${minExpectedPrice.toFixed(2)}) - please verify`;
+                if (__DEV__) console.log(`   ⚠️ No ext price to verify, adding warning`);
+              }
+            }
+          }
+
           let premium = '0';
           if (unitPrice > 0 && spotNum > 0 && ozt > 0) {
             premium = (unitPrice - (spotNum * ozt)).toFixed(2);
           }
-
-          const qty = parseInt(item.quantity) || 1;
-          const extPrice = item.extPrice ? parseFloat(item.extPrice) : unitPrice * qty;
 
           processedItems.push({
             metal: extractedMetal,
@@ -1299,6 +1329,7 @@ function AppContent() {
             shipping: 0,
             spotPrice: parseFloat(spotPrice) || 0,
             premium: parseFloat(premium) || 0,
+            priceWarning: priceWarning,
           });
         }
 
@@ -1610,6 +1641,12 @@ function AppContent() {
     // Recalculate premium
     if (item.unitPrice > 0 && item.spotPrice > 0 && item.ozt > 0) {
       item.premium = Math.round((item.unitPrice - (item.spotPrice * item.ozt)) * 100) / 100;
+
+      // Clear warning if price is now valid (at or above spot value)
+      const minExpectedPrice = item.spotPrice * item.ozt;
+      if (item.unitPrice >= minExpectedPrice) {
+        item.priceWarning = null;
+      }
     }
 
     setScannedItems(updatedItems);
@@ -3002,6 +3039,13 @@ function AppContent() {
                       Premium: ${item.premium.toFixed(2)}
                     </Text>
                   )}
+                </View>
+              )}
+
+              {/* Price warning for suspicious values */}
+              {item.priceWarning && (
+                <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', padding: 8, borderRadius: 6, marginTop: 8 }}>
+                  <Text style={{ color: colors.error, fontSize: 11 }}>⚠️ {item.priceWarning}</Text>
                 </View>
               )}
 
