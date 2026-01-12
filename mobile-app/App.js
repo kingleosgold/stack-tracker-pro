@@ -25,7 +25,6 @@ import { CloudStorage, CloudStorageScope } from 'react-native-cloud-storage';
 import { initializePurchases, hasGoldEntitlement, getUserEntitlements } from './src/utils/entitlements';
 import GoldPaywall from './src/components/GoldPaywall';
 import Tutorial from './src/components/Tutorial';
-import Svg, { Circle } from 'react-native-svg';
 
 // iCloud sync key
 const ICLOUD_HOLDINGS_KEY = 'stack_tracker_holdings.json';
@@ -129,61 +128,39 @@ const PieChart = ({ data, size = 150, cardBgColor, textColor, mutedColor }) => {
   const total = data.reduce((sum, item) => sum + item.value, 0);
   if (total === 0) return null;
 
-  // Calculate legend percentages from all data (including 0%)
-  const legendItems = data.map((item) => ({
-    ...item,
-    percentage: item.value / total,
-  }));
-
-  // SVG donut chart using stroke-dasharray technique
-  const strokeWidth = size * 0.18;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const center = size / 2;
-  const gapPercent = 0.02; // 2% gap between segments
-
-  // Filter to non-zero segments
-  const nonZeroData = data.filter((item) => item.value > 0);
-
-  // Calculate arc lengths for each segment (minus gap)
-  let cumulativePercent = 0;
-  const segments = nonZeroData.map((item) => {
-    const percent = item.value / total;
-    const arcPercent = Math.max(0, percent - gapPercent);
-    const arcLength = arcPercent * circumference;
-    const gapLength = circumference - arcLength;
-    const rotationOffset = cumulativePercent * 360 - 90; // Start at 12 o'clock
-    cumulativePercent += percent;
-    return { ...item, arcLength, gapLength, rotationOffset };
+  let currentAngle = 0;
+  const segments = data.map((item) => {
+    const percentage = item.value / total;
+    const angle = percentage * 360;
+    const startAngle = currentAngle;
+    currentAngle += angle;
+    return { ...item, percentage, startAngle, angle };
   });
 
   return (
     <View style={{ alignItems: 'center' }}>
-      <View style={{ width: size, height: size, position: 'relative' }}>
-        <Svg width={size} height={size}>
-          {segments.map((segment, index) => (
-            <Circle
-              key={index}
-              cx={center}
-              cy={center}
-              r={radius}
-              stroke={segment.color}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeDasharray={`${segment.arcLength} ${segment.gapLength}`}
-              strokeLinecap="round"
-              rotation={segment.rotationOffset}
-              origin={`${center}, ${center}`}
-            />
-          ))}
-        </Svg>
-        {/* Center label */}
+      <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', position: 'relative' }}>
+        {segments.map((segment, index) => (
+          <View
+            key={index}
+            style={{
+              position: 'absolute',
+              width: size,
+              height: size,
+              transform: [{ rotate: `${segment.startAngle}deg` }],
+            }}
+          >
+            <View style={{ width: size / 2, height: size, backgroundColor: segment.color }} />
+          </View>
+        ))}
         <View style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          width: size * 0.6,
+          height: size * 0.6,
+          borderRadius: size * 0.3,
+          backgroundColor: cardBgColor || '#1a1a2e',
+          top: size * 0.2,
+          left: size * 0.2,
           justifyContent: 'center',
           alignItems: 'center',
         }}>
@@ -192,12 +169,11 @@ const PieChart = ({ data, size = 150, cardBgColor, textColor, mutedColor }) => {
           </Text>
         </View>
       </View>
-      {/* Legend shows all items including 0% */}
       <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
-        {legendItems.map((item, index) => (
+        {segments.map((segment, index) => (
           <View key={index} style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: item.color, marginRight: 6 }} />
-            <Text style={{ color: mutedColor || '#a1a1aa', fontSize: 12 }}>{item.label} {(item.percentage * 100).toFixed(0)}%</Text>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: segment.color, marginRight: 6 }} />
+            <Text style={{ color: mutedColor || '#a1a1aa', fontSize: 12 }}>{segment.label} {(segment.percentage * 100).toFixed(0)}%</Text>
           </View>
         ))}
       </View>
