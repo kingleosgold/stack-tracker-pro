@@ -1233,12 +1233,12 @@ function AppContent() {
         Alert.alert('Permission Required', 'Please allow access to your photos.');
         return;
       }
-      // Allow multiple selection for gallery
+      // Allow multiple selection for gallery (up to 5 images)
       result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 1.0,
         allowsMultipleSelection: true,
-        selectionLimit: 10
+        selectionLimit: 5
       });
     }
 
