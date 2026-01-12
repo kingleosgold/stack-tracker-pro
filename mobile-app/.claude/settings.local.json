@@ -33,7 +33,8 @@
       "Bash(powershell -Command \"Get-ChildItem icon*.png | ForEach-Object { $_Name + '': '' + \\(Get-Item $_FullName\\).Length + '' bytes'' }\")",
       "Bash(where:*)",
       "Bash(python:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

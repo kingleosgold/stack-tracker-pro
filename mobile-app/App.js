@@ -25,7 +25,7 @@ import { CloudStorage, CloudStorageScope } from 'react-native-cloud-storage';
 import { initializePurchases, hasGoldEntitlement, getUserEntitlements } from './src/utils/entitlements';
 import GoldPaywall from './src/components/GoldPaywall';
 import Tutorial from './src/components/Tutorial';
-import { VictoryPie } from 'victory-native';
+import Svg, { Circle } from 'react-native-svg';
 
 // iCloud sync key
 const ICLOUD_HOLDINGS_KEY = 'stack_tracker_holdings.json';
@@ -135,36 +135,48 @@ const PieChart = ({ data, size = 150, cardBgColor, textColor, mutedColor }) => {
     percentage: item.value / total,
   }));
 
-  // Filter out zero-value segments and prepare data for VictoryPie
-  const chartData = data
-    .filter((item) => item.value > 0)
-    .map((item) => ({ x: item.label, y: item.value }));
+  // SVG donut chart using stroke-dasharray technique
+  const strokeWidth = size * 0.18;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const center = size / 2;
+  const gapPercent = 0.02; // 2% gap between segments
 
-  // Get colors in same order as chartData
-  const colorScale = data
-    .filter((item) => item.value > 0)
-    .map((item) => item.color);
+  // Filter to non-zero segments
+  const nonZeroData = data.filter((item) => item.value > 0);
+
+  // Calculate arc lengths for each segment (minus gap)
+  let cumulativePercent = 0;
+  const segments = nonZeroData.map((item) => {
+    const percent = item.value / total;
+    const arcPercent = Math.max(0, percent - gapPercent);
+    const arcLength = arcPercent * circumference;
+    const gapLength = circumference - arcLength;
+    const rotationOffset = cumulativePercent * 360 - 90; // Start at 12 o'clock
+    cumulativePercent += percent;
+    return { ...item, arcLength, gapLength, rotationOffset };
+  });
 
   return (
     <View style={{ alignItems: 'center' }}>
       <View style={{ width: size, height: size, position: 'relative' }}>
-        <VictoryPie
-          data={chartData}
-          width={size}
-          height={size}
-          innerRadius={size * 0.32}
-          padAngle={3}
-          startAngle={-90}
-          endAngle={270}
-          colorScale={colorScale}
-          labels={() => null}
-          style={{
-            data: {
-              stroke: 'transparent',
-              strokeWidth: 0,
-            },
-          }}
-        />
+        <Svg width={size} height={size}>
+          {segments.map((segment, index) => (
+            <Circle
+              key={index}
+              cx={center}
+              cy={center}
+              r={radius}
+              stroke={segment.color}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={`${segment.arcLength} ${segment.gapLength}`}
+              strokeLinecap="round"
+              rotation={segment.rotationOffset}
+              origin={`${center}, ${center}`}
+            />
+          ))}
+        </Svg>
         {/* Center label */}
         <View style={{
           position: 'absolute',
