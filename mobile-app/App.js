@@ -94,25 +94,35 @@ class ErrorBoundary extends Component {
 // REUSABLE COMPONENTS
 // ============================================
 
-const FloatingInput = ({ label, value, onChangeText, placeholder, keyboardType, prefix, editable = true }) => (
-  <View style={styles.floatingContainer}>
-    <Text style={styles.floatingLabel}>{label}</Text>
-    <View style={[styles.inputRow, !editable && { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-      {prefix && <Text style={styles.inputPrefix}>{prefix}</Text>}
-      <TextInput
-        style={[styles.floatingInput, prefix && { paddingLeft: 4 }]}
-        placeholder={placeholder}
-        placeholderTextColor="#52525b"
-        keyboardType={keyboardType || 'default'}
-        value={value}
-        onChangeText={onChangeText}
-        editable={editable}
-        returnKeyType="done"
-        onSubmitEditing={Keyboard.dismiss}
-      />
+const FloatingInput = ({ label, value, onChangeText, placeholder, keyboardType, prefix, editable = true, colors, isDarkMode }) => {
+  // Default colors for backwards compatibility
+  const labelColor = colors ? colors.muted : '#a1a1aa';
+  const inputBg = colors ? (isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)') : 'rgba(0,0,0,0.3)';
+  const borderColor = colors ? colors.border : 'rgba(255,255,255,0.1)';
+  const textColor = colors ? colors.text : '#fff';
+  const prefixColor = colors ? colors.muted : '#71717a';
+  const disabledBg = colors ? (isDarkMode ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.1)') : 'rgba(0,0,0,0.5)';
+
+  return (
+    <View style={styles.floatingContainer}>
+      <Text style={[styles.floatingLabel, { color: labelColor }]}>{label}</Text>
+      <View style={[styles.inputRow, { backgroundColor: inputBg, borderColor: borderColor }, !editable && { backgroundColor: disabledBg }]}>
+        {prefix && <Text style={[styles.inputPrefix, { color: prefixColor }]}>{prefix}</Text>}
+        <TextInput
+          style={[styles.floatingInput, { color: textColor }, prefix && { paddingLeft: 4 }]}
+          placeholder={placeholder}
+          placeholderTextColor={colors ? colors.muted : '#52525b'}
+          keyboardType={keyboardType || 'default'}
+          value={value}
+          onChangeText={onChangeText}
+          editable={editable}
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
+        />
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const PieChart = ({ data, size = 150 }) => {
   const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -206,40 +216,48 @@ const ProgressBar = ({ value, max, color, label }) => {
 };
 
 // Modal wrapper with proper keyboard handling and smooth scrolling
-const ModalWrapper = ({ visible, onClose, title, children }) => (
-  <Modal visible={visible} animationType="slide" transparent>
-    <View style={styles.modalOverlay}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalKeyboardView}
-      >
-        <View style={styles.modalContent}>
-          {/* Header - always visible */}
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+const ModalWrapper = ({ visible, onClose, title, children, colors, isDarkMode }) => {
+  // Default colors for backwards compatibility (dark theme)
+  const modalBg = colors ? (isDarkMode ? '#1a1a2e' : '#ffffff') : '#1a1a2e';
+  const textColor = colors ? colors.text : '#fff';
+  const borderColor = colors ? colors.border : 'rgba(255,255,255,0.1)';
+  const buttonBg = colors ? (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') : 'rgba(255,255,255,0.1)';
 
-          {/* Content - scrollable with keyboard dismiss on scroll */}
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}
-          >
-            {children}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
-  </Modal>
-);
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.modalKeyboardView, { backgroundColor: modalBg }]}
+        >
+          <View style={[styles.modalContent, { backgroundColor: modalBg }]}>
+            {/* Header - always visible */}
+            <View style={[styles.modalHeader, { borderBottomColor: borderColor }]}>
+              <Text style={[styles.modalTitle, { color: textColor }]}>{title}</Text>
+              <TouchableOpacity
+                onPress={onClose}
+                style={[styles.closeButton, { backgroundColor: buttonBg }]}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+              >
+                <Text style={[styles.closeButtonText, { color: textColor }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Content - scrollable with keyboard dismiss on scroll */}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            >
+              {children}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+};
 
 // ============================================
 // MAIN APP
@@ -2168,7 +2186,7 @@ function AppContent() {
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Cost Basis</Text>
-                <Text style={styles.statRowValue}>${totalCostBasis.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>${totalCostBasis.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Premiums Paid</Text>
@@ -2182,11 +2200,11 @@ function AppContent() {
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Avg Silver Cost</Text>
-                <Text style={styles.statRowValue}>${formatCurrency(avgSilverCostPerOz)}/oz</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>${formatCurrency(avgSilverCostPerOz)}/oz</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Avg Gold Cost</Text>
-                <Text style={styles.statRowValue}>${formatCurrency(avgGoldCostPerOz)}/oz</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>${formatCurrency(avgGoldCostPerOz)}/oz</Text>
               </View>
             </View>
 
@@ -2777,12 +2795,12 @@ function AppContent() {
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalKeyboardView}
+            style={[styles.modalKeyboardView, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff' }]}
           >
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff' }]}>
               {/* Header */}
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingItem ? 'Edit' : 'Add'} Purchase</Text>
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>{editingItem ? 'Edit' : 'Add'} Purchase</Text>
                 <TouchableOpacity
                   onPress={() => {
                     // If editing a scanned item, return to scan results without losing data
@@ -2800,10 +2818,10 @@ function AppContent() {
                       setShowAddModal(false);
                     }
                   }}
-                  style={styles.closeButton}
+                  style={[styles.closeButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}
                   hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                 >
-                  <Text style={styles.closeButtonText}>✕</Text>
+                  <Text style={[styles.closeButtonText, { color: colors.text }]}>✕</Text>
                 </TouchableOpacity>
               </View>
 
@@ -2860,18 +2878,18 @@ function AppContent() {
                     </TouchableOpacity>
                   </View>
 
-                  <FloatingInput label="Product Name *" value={form.productName} onChangeText={v => setForm(p => ({ ...p, productName: v }))} placeholder="American Silver Eagle" />
-                  <FloatingInput label="Dealer" value={form.source} onChangeText={v => setForm(p => ({ ...p, source: v }))} placeholder="APMEX" />
-                  <FloatingInput label="Date (YYYY-MM-DD)" value={form.datePurchased} onChangeText={handleDateChange} placeholder="2025-12-25" />
+                  <FloatingInput label="Product Name *" value={form.productName} onChangeText={v => setForm(p => ({ ...p, productName: v }))} placeholder="American Silver Eagle" colors={colors} isDarkMode={isDarkMode} />
+                  <FloatingInput label="Dealer" value={form.source} onChangeText={v => setForm(p => ({ ...p, source: v }))} placeholder="APMEX" colors={colors} isDarkMode={isDarkMode} />
+                  <FloatingInput label="Date (YYYY-MM-DD)" value={form.datePurchased} onChangeText={handleDateChange} placeholder="2025-12-25" colors={colors} isDarkMode={isDarkMode} />
 
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flex: 1 }}><FloatingInput label="OZT per unit *" value={form.ozt} onChangeText={v => setForm(p => ({ ...p, ozt: v }))} placeholder="1" keyboardType="decimal-pad" /></View>
-                    <View style={{ flex: 1 }}><FloatingInput label="Quantity" value={form.quantity} onChangeText={v => setForm(p => ({ ...p, quantity: v }))} placeholder="1" keyboardType="number-pad" /></View>
+                    <View style={{ flex: 1 }}><FloatingInput label="OZT per unit *" value={form.ozt} onChangeText={v => setForm(p => ({ ...p, ozt: v }))} placeholder="1" keyboardType="decimal-pad" colors={colors} isDarkMode={isDarkMode} /></View>
+                    <View style={{ flex: 1 }}><FloatingInput label="Quantity" value={form.quantity} onChangeText={v => setForm(p => ({ ...p, quantity: v }))} placeholder="1" keyboardType="number-pad" colors={colors} isDarkMode={isDarkMode} /></View>
                   </View>
 
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flex: 1 }}><FloatingInput label="Unit Price *" value={form.unitPrice} onChangeText={v => setForm(p => ({ ...p, unitPrice: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" /></View>
-                    <View style={{ flex: 1 }}><FloatingInput label="Spot at Purchase" value={form.spotPrice} onChangeText={v => { setForm(p => ({ ...p, spotPrice: v })); setSpotPriceSource(null); }} placeholder="Auto" keyboardType="decimal-pad" prefix="$" /></View>
+                    <View style={{ flex: 1 }}><FloatingInput label="Unit Price *" value={form.unitPrice} onChangeText={v => setForm(p => ({ ...p, unitPrice: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
+                    <View style={{ flex: 1 }}><FloatingInput label="Spot at Purchase" value={form.spotPrice} onChangeText={v => { setForm(p => ({ ...p, spotPrice: v })); setSpotPriceSource(null); }} placeholder="Auto" keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
                   </View>
 
                   {/* Warning for inaccurate historical spot prices */}
@@ -2887,14 +2905,14 @@ function AppContent() {
                   )}
 
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={{ flex: 1 }}><FloatingInput label="Taxes" value={form.taxes} onChangeText={v => setForm(p => ({ ...p, taxes: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" /></View>
-                    <View style={{ flex: 1 }}><FloatingInput label="Shipping" value={form.shipping} onChangeText={v => setForm(p => ({ ...p, shipping: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" /></View>
+                    <View style={{ flex: 1 }}><FloatingInput label="Taxes" value={form.taxes} onChangeText={v => setForm(p => ({ ...p, taxes: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
+                    <View style={{ flex: 1 }}><FloatingInput label="Shipping" value={form.shipping} onChangeText={v => setForm(p => ({ ...p, shipping: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
                   </View>
 
                   <View style={[styles.card, { backgroundColor: `${colors.gold}15` }]}>
                     <Text style={{ color: colors.gold, fontWeight: '600', marginBottom: 8 }}>Premium (Auto-calculated)</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <View style={{ flex: 1 }}><FloatingInput label="Per Unit" value={form.premium} onChangeText={v => setForm(p => ({ ...p, premium: v }))} keyboardType="decimal-pad" prefix="$" /></View>
+                      <View style={{ flex: 1 }}><FloatingInput label="Per Unit" value={form.premium} onChangeText={v => setForm(p => ({ ...p, premium: v }))} keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
                       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                         {(() => {
                           const totalPremium = parseFloat(form.premium || 0) * parseInt(form.quantity || 1);
@@ -2915,7 +2933,7 @@ function AppContent() {
                 </ScrollView>
 
                 {/* Sticky Save Button */}
-                <View style={styles.stickyButtonContainer}>
+                <View style={[styles.stickyButtonContainer, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff', borderTopColor: colors.border }]}>
                   <TouchableOpacity style={[styles.button, { backgroundColor: currentColor }]} onPress={savePurchase}>
                     <Text style={{ color: '#000', fontWeight: '600' }}>{editingItem ? 'Update' : 'Add'} Purchase</Text>
                   </TouchableOpacity>
@@ -2930,11 +2948,13 @@ function AppContent() {
         visible={showSpeculationModal}
         onClose={() => setShowSpeculationModal(false)}
         title="🔮 What If..."
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         {/* Inputs at TOP */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <View style={{ flex: 1 }}><FloatingInput label="Silver Price" value={specSilverPrice} onChangeText={setSpecSilverPrice} keyboardType="decimal-pad" prefix="$" /></View>
-          <View style={{ flex: 1 }}><FloatingInput label="Gold Price" value={specGoldPrice} onChangeText={setSpecGoldPrice} keyboardType="decimal-pad" prefix="$" /></View>
+          <View style={{ flex: 1 }}><FloatingInput label="Silver Price" value={specSilverPrice} onChangeText={setSpecSilverPrice} keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
+          <View style={{ flex: 1 }}><FloatingInput label="Gold Price" value={specGoldPrice} onChangeText={setSpecGoldPrice} keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
         </View>
 
         {/* Quick presets */}
@@ -2975,6 +2995,8 @@ function AppContent() {
         visible={showJunkCalcModal}
         onClose={() => setShowJunkCalcModal(false)}
         title="🧮 Junk Silver Calculator"
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         {/* Type selector at TOP */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
@@ -2986,7 +3008,7 @@ function AppContent() {
         </View>
 
         {/* Input */}
-        <FloatingInput label={junkType === '35' ? '# of Nickels' : 'Face Value ($)'} value={junkFaceValue} onChangeText={setJunkFaceValue} keyboardType="decimal-pad" prefix={junkType === '35' ? '' : '$'} />
+        <FloatingInput label={junkType === '35' ? '# of Nickels' : 'Face Value ($)'} value={junkFaceValue} onChangeText={setJunkFaceValue} keyboardType="decimal-pad" prefix={junkType === '35' ? '' : '$'} colors={colors} isDarkMode={isDarkMode} />
 
         {/* Results */}
         <View style={[styles.card, { backgroundColor: `${colors.silver}22` }]}>
@@ -3013,18 +3035,20 @@ function AppContent() {
         visible={showPrivacyModal}
         onClose={() => setShowPrivacyModal(false)}
         title="🔒 Privacy Architecture"
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.success }]}>✅ What We Do</Text>
-          <Text style={styles.privacyItem}>• Store data locally on YOUR device</Text>
-          <Text style={styles.privacyItem}>• Process receipts in memory only</Text>
-          <Text style={styles.privacyItem}>• Delete images immediately</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Store data locally on YOUR device</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Process receipts in memory only</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Delete images immediately</Text>
         </View>
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.error }]}>❌ What We DON'T Do</Text>
-          <Text style={styles.privacyItem}>• Store your data on servers</Text>
-          <Text style={styles.privacyItem}>• Track your holdings</Text>
-          <Text style={styles.privacyItem}>• Share any information</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Store your data on servers</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Track your holdings</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Share any information</Text>
         </View>
         <View style={[styles.card, { backgroundColor: `${colors.success}22` }]}>
           <Text style={{ color: colors.success, fontWeight: '600' }}>Our Promise</Text>
@@ -3037,28 +3061,30 @@ function AppContent() {
         visible={showHelpModal}
         onClose={() => setShowHelpModal(false)}
         title="📖 Help & Tips"
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Getting Started</Text>
-          <Text style={styles.privacyItem}>• Add purchases manually by tapping "+" on the Holdings tab</Text>
-          <Text style={styles.privacyItem}>• Or use AI Receipt Scanner to automatically extract data from receipts and invoices</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Add purchases manually by tapping "+" on the Holdings tab</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Or use AI Receipt Scanner to automatically extract data from receipts and invoices</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>AI Receipt Scanner</Text>
-          <Text style={styles.privacyItem}>• Tap "Take Photo" to capture a receipt with your camera</Text>
-          <Text style={styles.privacyItem}>• Tap "Upload Photo" to select an existing image from your gallery</Text>
-          <Text style={styles.privacyItem}>• The AI will extract product name, quantity, price, dealer, and date</Text>
-          <Text style={styles.privacyItem}>• Review and edit the extracted data before saving</Text>
-          <Text style={[styles.privacyItem, { marginTop: 8 }]}>• Free users get 5 scans per month (resets monthly)</Text>
-          <Text style={styles.privacyItem}>• Gold/Lifetime subscribers get unlimited scans</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Tap "Take Photo" to capture a receipt with your camera</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Tap "Upload Photo" to select an existing image from your gallery</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• The AI will extract product name, quantity, price, dealer, and date</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Review and edit the extracted data before saving</Text>
+          <Text style={[styles.privacyItem, { marginTop: 8, color: colors.text }]}>• Free users get 5 scans per month (resets monthly)</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Gold/Lifetime subscribers get unlimited scans</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Backup & Restore</Text>
-          <Text style={styles.privacyItem}>• Your data is stored locally on your device only - we can't access it</Text>
-          <Text style={styles.privacyItem}>• Use "Backup" to save your portfolio to iCloud Drive, Google Drive, or any cloud storage</Text>
-          <Text style={styles.privacyItem}>• Use "Restore" to load a backup onto this device or a new device</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Your data is stored locally on your device only - we can't access it</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use "Backup" to save your portfolio to iCloud Drive, Google Drive, or any cloud storage</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use "Restore" to load a backup onto this device or a new device</Text>
           <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', padding: 10, borderRadius: 8, marginTop: 8 }}>
             <Text style={{ color: colors.gold, fontSize: 13, fontWeight: '600' }}>⚠️ IMPORTANT: Backup regularly to avoid data loss!</Text>
           </View>
@@ -3069,34 +3095,34 @@ function AppContent() {
           {Platform.OS === 'ios' ? (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <Text style={styles.privacyItem}>• iCloud Sync</Text>
+                <Text style={[styles.privacyItem, { color: colors.text }]}>• iCloud Sync</Text>
                 <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                   <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '600' }}>GOLD</Text>
                 </View>
               </View>
-              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4 }]}>Automatically sync holdings across all your Apple devices</Text>
-              <Text style={[styles.privacyItem, { marginTop: 12 }]}>• Manual Backup/Restore (all users)</Text>
+              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.text }]}>Automatically sync holdings across all your Apple devices</Text>
+              <Text style={[styles.privacyItem, { marginTop: 12, color: colors.text }]}>• Manual Backup/Restore (all users)</Text>
               <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.muted, fontSize: 12 }]}>Export/import for cross-platform or offline backup</Text>
             </>
           ) : (
             <>
-              <Text style={styles.privacyItem}>• Use Manual Backup to export your holdings</Text>
-              <Text style={[styles.privacyItem, { marginTop: 8 }]}>• To use on multiple devices:</Text>
-              <Text style={[styles.privacyItem, { paddingLeft: 12 }]}>1. Backup from your primary device</Text>
-              <Text style={[styles.privacyItem, { paddingLeft: 12 }]}>2. Restore on your secondary device</Text>
+              <Text style={[styles.privacyItem, { color: colors.text }]}>• Use Manual Backup to export your holdings</Text>
+              <Text style={[styles.privacyItem, { marginTop: 8, color: colors.text }]}>• To use on multiple devices:</Text>
+              <Text style={[styles.privacyItem, { paddingLeft: 12, color: colors.text }]}>1. Backup from your primary device</Text>
+              <Text style={[styles.privacyItem, { paddingLeft: 12, color: colors.text }]}>2. Restore on your secondary device</Text>
             </>
           )}
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Export CSV</Text>
-          <Text style={styles.privacyItem}>• Export your entire portfolio as a CSV spreadsheet</Text>
-          <Text style={styles.privacyItem}>• Use for your own records, tax preparation, or importing to other tools</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Export your entire portfolio as a CSV spreadsheet</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use for your own records, tax preparation, or importing to other tools</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Support</Text>
-          <Text style={styles.privacyItem}>• Need help? Email stacktrackerpro@gmail.com</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Need help? Email stacktrackerpro@gmail.com</Text>
           <Text style={[styles.privacyItem, { marginTop: 4, color: colors.muted, fontSize: 12 }]}>Include your Support ID (found in Settings → Advanced) for faster assistance</Text>
         </View>
       </ModalWrapper>
@@ -3117,6 +3143,8 @@ function AppContent() {
           setScannedMetadata({ purchaseDate: '', dealer: '' });
         }}
         title="Receipt Scanned"
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         <View style={{ marginBottom: 16 }}>
           <Text style={{ color: colors.success, fontSize: 18, fontWeight: '600', marginBottom: 4 }}>
@@ -3240,19 +3268,19 @@ function AppContent() {
       {/* Import Preview Modal - Custom structure for FlatList */}
       <Modal visible={showImportPreview} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff' }]}>
             {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Import Preview</Text>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Import Preview</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowImportPreview(false);
                   setImportData([]);
                 }}
-                style={styles.closeButton}
+                style={[styles.closeButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}
                 hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <Text style={[styles.closeButtonText, { color: colors.text }]}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -3270,7 +3298,7 @@ function AppContent() {
                 const itemColor = item.metal === 'silver' ? colors.silver : colors.gold;
 
                 return (
-                  <View style={[styles.card, { marginBottom: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: itemColor, marginHorizontal: 20 }]}>
+                  <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, marginBottom: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: itemColor, marginHorizontal: 20 }]}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{item.productName}</Text>
@@ -3349,39 +3377,41 @@ function AppContent() {
           setDetailMetal(null);
         }}
         title="Item Details"
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         {detailItem && (
           <>
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { fontSize: 20 }]}>{detailItem.productName}</Text>
+              <Text style={[styles.cardTitle, { fontSize: 20, color: colors.text }]}>{detailItem.productName}</Text>
               {detailItem.datePurchased && (
                 <View style={styles.statRow}>
                   <Text style={styles.statRowLabel}>📅 Purchase Date</Text>
-                  <Text style={styles.statRowValue}>{detailItem.datePurchased}</Text>
+                  <Text style={[styles.statRowValue, { color: colors.text }]}>{detailItem.datePurchased}</Text>
                 </View>
               )}
               {detailItem.source && (
                 <View style={styles.statRow}>
                   <Text style={styles.statRowLabel}>🏪 Source</Text>
-                  <Text style={styles.statRowValue}>{detailItem.source}</Text>
+                  <Text style={[styles.statRowValue, { color: colors.text }]}>{detailItem.source}</Text>
                 </View>
               )}
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Quantity</Text>
-                <Text style={styles.statRowValue}>{detailItem.quantity}x</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>{detailItem.quantity}x</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Unit Price</Text>
-                <Text style={styles.statRowValue}>${formatCurrency(detailItem.unitPrice)}</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>${formatCurrency(detailItem.unitPrice)}</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Troy Ounces (each)</Text>
-                <Text style={styles.statRowValue}>{detailItem.ozt} oz</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>{detailItem.ozt} oz</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statRowLabel}>Total Weight</Text>
-                <Text style={styles.statRowValue}>{(detailItem.ozt * detailItem.quantity).toFixed(2)} oz</Text>
+                <Text style={[styles.statRowValue, { color: colors.text }]}>{(detailItem.ozt * detailItem.quantity).toFixed(2)} oz</Text>
               </View>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.statRow}>
@@ -3397,19 +3427,19 @@ function AppContent() {
               {detailItem.taxes > 0 && (
                 <View style={styles.statRow}>
                   <Text style={styles.statRowLabel}>Taxes</Text>
-                  <Text style={styles.statRowValue}>${formatCurrency(detailItem.taxes)}</Text>
+                  <Text style={[styles.statRowValue, { color: colors.text }]}>${formatCurrency(detailItem.taxes)}</Text>
                 </View>
               )}
               {detailItem.shipping > 0 && (
                 <View style={styles.statRow}>
                   <Text style={styles.statRowLabel}>Shipping</Text>
-                  <Text style={styles.statRowValue}>${formatCurrency(detailItem.shipping)}</Text>
+                  <Text style={[styles.statRowValue, { color: colors.text }]}>${formatCurrency(detailItem.shipping)}</Text>
                 </View>
               )}
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.statRow}>
                 <Text style={[styles.statRowLabel, { fontSize: 14, fontWeight: '600' }]}>Total Cost Basis</Text>
-                <Text style={[styles.statRowValue, { fontSize: 16 }]}>
+                <Text style={[styles.statRowValue, { fontSize: 16, color: colors.text }]}>
                   ${formatCurrency((detailItem.unitPrice * detailItem.quantity) + detailItem.taxes + detailItem.shipping)}
                 </Text>
               </View>
@@ -3447,6 +3477,8 @@ function AppContent() {
         visible={showSortMenu}
         onClose={() => setShowSortMenu(false)}
         title="Sort Holdings"
+        colors={colors}
+        isDarkMode={isDarkMode}
       >
         <TouchableOpacity
           style={[styles.card, sortBy === 'date-newest' && { backgroundColor: 'rgba(251,191,36,0.15)', borderColor: colors.gold }]}
@@ -3456,7 +3488,7 @@ function AppContent() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
-          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>📅 Date (Newest First)</Text>
+          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>📅 Date (Newest First)</Text>
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Most recent purchases first</Text>
         </TouchableOpacity>
 
@@ -3468,7 +3500,7 @@ function AppContent() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
-          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>📅 Date (Oldest First)</Text>
+          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>📅 Date (Oldest First)</Text>
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Earliest purchases first</Text>
         </TouchableOpacity>
 
@@ -3480,7 +3512,7 @@ function AppContent() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
-          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>💰 Value (High to Low)</Text>
+          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>💰 Value (High to Low)</Text>
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Highest melt value first</Text>
         </TouchableOpacity>
 
@@ -3492,7 +3524,7 @@ function AppContent() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
-          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>💰 Value (Low to High)</Text>
+          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>💰 Value (Low to High)</Text>
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Lowest melt value first</Text>
         </TouchableOpacity>
 
@@ -3504,7 +3536,7 @@ function AppContent() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
-          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>🔤 Name (A-Z)</Text>
+          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>🔤 Name (A-Z)</Text>
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Alphabetical by product name</Text>
         </TouchableOpacity>
       </ModalWrapper>
