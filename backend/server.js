@@ -701,52 +701,70 @@ app.post('/api/increment-scan', async (req, res) => {
  * Privacy: Image is processed in memory only, never stored
  */
 app.post('/api/scan-receipt', upload.single('receipt'), async (req, res) => {
-  console.log('📷 Scan request received');
+  const startTime = Date.now();
+  console.log('\n');
+  console.log('╔══════════════════════════════════════════════════════════════╗');
+  console.log('║                    RECEIPT SCAN REQUEST                       ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝');
 
   try {
-    // DEBUG: Log spot price cache state
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔍 DEBUG: spotPriceCache contents:');
-    console.log('   Full cache:', JSON.stringify(spotPriceCache, null, 2));
-    console.log('   spotPriceCache.prices:', spotPriceCache.prices);
-    console.log('   spotPriceCache.prices?.silver:', spotPriceCache.prices?.silver);
-    console.log('   spotPriceCache.prices?.gold:', spotPriceCache.prices?.gold);
-    console.log('   lastUpdated:', spotPriceCache.lastUpdated);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    // Ensure we have fresh spot prices (refresh if older than 10 min)
-    const cacheAge = spotPriceCache.lastUpdated
-      ? (Date.now() - spotPriceCache.lastUpdated.getTime()) / 1000 / 60
-      : Infinity;
-
-    if (cacheAge > 10) {
-      console.log('🔄 Spot price cache expired, refreshing before scan...');
-      await fetchLiveSpotPrices();
-      console.log('✅ Spot prices refreshed:', spotPriceCache.prices);
-    }
-
     if (!req.file) {
       console.log('❌ No file uploaded');
       return res.status(400).json({ error: 'No image provided' });
     }
 
     // Log file details
-    console.log('📄 File details:', {
-      mimetype: req.file.mimetype,
-      size: `${(req.file.size / 1024).toFixed(2)} KB`,
-      originalname: req.file.originalname
-    });
+    console.log('📄 IMAGE DETAILS:');
+    console.log(`   - MIME type: ${req.file.mimetype}`);
+    console.log(`   - Size: ${(req.file.size / 1024).toFixed(2)} KB (${req.file.size} bytes)`);
+    console.log(`   - Original name: ${req.file.originalname}`);
 
     // Convert buffer to base64 (stays in memory)
     const base64Image = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype || 'image/jpeg';
+    console.log(`   - Base64 length: ${base64Image.length} characters`);
 
-    console.log('🤖 Calling Claude Vision API...');
+    // Simple, direct prompt - no complex validation rules
+    const prompt = `This is a receipt from a precious metals dealer. Please read it carefully and extract:
 
-    // Call Claude Vision API
+- Dealer name
+- Purchase date (MM/DD/YYYY format, convert to YYYY-MM-DD)
+- For each line item:
+  - Product description (exactly as printed)
+  - Quantity
+  - Unit price (price per single item, as a number)
+  - Metal type (gold/silver/platinum/palladium)
+  - Weight per item in troy ounces
+
+Read every number EXACTLY as printed on the receipt. Do not estimate or round.
+
+Return as JSON only:
+{
+  "dealer": "dealer name",
+  "purchaseDate": "YYYY-MM-DD",
+  "items": [
+    {
+      "description": "product name",
+      "quantity": 1,
+      "unitPrice": 123.45,
+      "metal": "gold",
+      "ozt": 1.0
+    }
+  ]
+}`;
+
+    console.log('\n📝 PROMPT SENT TO CLAUDE:');
+    console.log('─'.repeat(60));
+    console.log(prompt);
+    console.log('─'.repeat(60));
+
+    console.log('\n🤖 Calling Claude Vision API (claude-sonnet-4-20250514)...');
+    const apiStartTime = Date.now();
+
+    // Call Claude Vision API - simple and direct
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         {
           role: 'user',
@@ -761,54 +779,30 @@ app.post('/api/scan-receipt', upload.single('receipt'), async (req, res) => {
             },
             {
               type: 'text',
-              text: `Analyze this precious metals purchase receipt and extract ALL items.
-
-Return ONLY a JSON object:
-{
-  "dealer": "dealer/company name",
-  "purchaseDate": "YYYY-MM-DD",
-  "items": [
-    {
-      "metal": "gold, silver, platinum, or palladium",
-      "description": "product name/description",
-      "quantity": number,
-      "ozt": troy ounces per item (1oz coins = 1, 1/10oz = 0.1, etc.),
-      "unitPrice": price per unit in dollars (number only, e.g. 80.01)
-    }
-  ]
-}
-
-Instructions:
-- Extract EVERY line item separately
-- unitPrice = price PER ITEM (if you see total and quantity, divide)
-- Read the prices exactly as shown on the receipt
-- Standard coin weights: American Eagle 1oz, 1/2oz, 1/4oz, 1/10oz
-- Date = purchase/order date, not shipping date`
+              text: prompt,
             },
           ],
         },
       ],
     });
 
+    const apiDuration = Date.now() - apiStartTime;
+    console.log(`⏱️  API call completed in ${apiDuration}ms`);
+
     // Parse Claude's response
     const content = response.content[0];
     if (content.type !== 'text') {
-      throw new Error('Unexpected response type');
+      throw new Error('Unexpected response type from Claude');
     }
 
-    // ============================================
-    // DEBUG: Log raw Claude Vision response
-    // ============================================
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔍 DEBUG: Raw Claude Vision Response:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('\n📥 RAW CLAUDE RESPONSE:');
+    console.log('═'.repeat(60));
     console.log(content.text);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('═'.repeat(60));
 
     // Extract JSON from response
     let extractedData;
     try {
-      // Try to find JSON in the response
       const jsonMatch = content.text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         extractedData = JSON.parse(jsonMatch[0]);
@@ -816,158 +810,45 @@ Instructions:
         throw new Error('No JSON found in response');
       }
     } catch (parseError) {
-      console.error('Failed to parse receipt data:', content.text);
+      console.error('❌ JSON PARSE ERROR:', parseError.message);
+      console.error('   Raw text was:', content.text);
       extractedData = { items: [] };
     }
-
-    // ============================================
-    // DEBUG: Log parsed items with all fields
-    // ============================================
-    console.log('🔍 DEBUG: Parsed Items Array:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    if (extractedData.items && extractedData.items.length > 0) {
-      extractedData.items.forEach((item, index) => {
-        console.log(`  Item ${index + 1}:`);
-        console.log(`    - metal: ${item.metal}`);
-        console.log(`    - description: ${item.description}`);
-        console.log(`    - quantity: ${item.quantity}`);
-        console.log(`    - ozt: ${item.ozt}`);
-        console.log(`    - unitPrice: ${item.unitPrice} <-- CHECK THIS VALUE`);
-      });
-    } else {
-      console.log('  (No items found)');
-    }
-    console.log(`  dealer: ${extractedData.dealer}`);
-    console.log(`  purchaseDate: ${extractedData.purchaseDate}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Ensure items array exists
     if (!extractedData.items || !Array.isArray(extractedData.items)) {
       extractedData.items = [];
     }
 
-    // ============================================
-    // PRICE VALIDATION: Check for suspiciously low prices
-    // ============================================
-    const silverSpot = spotPriceCache.prices?.silver || 31;
-    const goldSpot = spotPriceCache.prices?.gold || 2650;
+    // Log parsed data
+    console.log('\n✅ PARSED EXTRACTION RESULT:');
+    console.log('─'.repeat(60));
+    console.log(`   Dealer: "${extractedData.dealer || '(not found)'}"`);
+    console.log(`   Purchase Date: "${extractedData.purchaseDate || '(not found)'}"`);
+    console.log(`   Items Found: ${extractedData.items.length}`);
+    console.log('');
 
-    console.log(`💰 Using spot prices for validation - Silver: $${silverSpot}/oz, Gold: $${goldSpot}/oz`);
-
-    // Minimum expected prices (spot + minimum typical premium)
-    const minSilverPrice = silverSpot + 5;  // At least $5 above spot per oz
-    const minGoldPrice = goldSpot + 50;     // At least $50 above spot per oz
-
-    const suspiciousItems = [];
-
-    for (let i = 0; i < extractedData.items.length; i++) {
-      const item = extractedData.items[i];
-      const metal = (item.metal || '').toLowerCase();
-      const pricePerOz = item.unitPrice / (item.ozt || 1);
-
-      let isSuspicious = false;
-      let reason = '';
-
-      if (metal === 'silver' || metal.includes('silver')) {
-        if (pricePerOz < minSilverPrice) {
-          isSuspicious = true;
-          reason = `Silver at $${item.unitPrice}/unit ($${pricePerOz.toFixed(2)}/oz) is below minimum expected $${minSilverPrice}/oz (spot $${silverSpot} + $3 premium)`;
-        }
-      } else if (metal === 'gold' || metal.includes('gold')) {
-        if (pricePerOz < minGoldPrice) {
-          isSuspicious = true;
-          reason = `Gold at $${item.unitPrice}/unit ($${pricePerOz.toFixed(2)}/oz) is below minimum expected $${minGoldPrice}/oz (spot $${goldSpot} + $30 premium)`;
-        }
-      }
-
-      if (isSuspicious) {
-        suspiciousItems.push({ index: i, item, reason });
-        console.log(`⚠️ SUSPICIOUS PRICE DETECTED (Item ${i + 1}): ${reason}`);
-      }
+    if (extractedData.items.length > 0) {
+      extractedData.items.forEach((item, index) => {
+        console.log(`   Item ${index + 1}:`);
+        console.log(`      Description: ${item.description}`);
+        console.log(`      Metal: ${item.metal}`);
+        console.log(`      Quantity: ${item.quantity}`);
+        console.log(`      Unit Price: $${item.unitPrice}`);
+        console.log(`      Weight: ${item.ozt} ozt`);
+        console.log('');
+      });
     }
-
-    // If we have suspicious prices, make a second API call to re-read them
-    if (suspiciousItems.length > 0 && base64Image) {
-      console.log(`\n🔄 Re-reading ${suspiciousItems.length} suspicious price(s)...`);
-
-      try {
-        const rereadResponse = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: mediaType,
-                    data: base64Image,
-                  },
-                },
-                {
-                  type: 'text',
-                  text: `Please read the prices for these items again:
-
-${suspiciousItems.map((s, idx) => `${idx + 1}. "${s.item.description}"`).join('\n')}
-
-Just tell me the dollar amounts shown on the receipt for each item. Read the numbers exactly as they appear.
-
-Give your best reading even if you're not 100% certain. A good guess is better than no answer.
-
-Return JSON:
-{
-  "correctedPrices": [
-    {"description": "item description", "unitPrice": price_number}
-  ]
-}`
-                },
-              ],
-            },
-          ],
-        });
-
-        const rereadContent = rereadResponse.content[0];
-        if (rereadContent.type === 'text') {
-          console.log('🔍 Re-read response:', rereadContent.text);
-
-          const rereadMatch = rereadContent.text.match(/\{[\s\S]*\}/);
-          if (rereadMatch) {
-            const rereadData = JSON.parse(rereadMatch[0]);
-
-            if (rereadData.correctedPrices && Array.isArray(rereadData.correctedPrices)) {
-              // Apply corrections
-              for (const correction of rereadData.correctedPrices) {
-                // Find matching item and update price
-                for (const suspicious of suspiciousItems) {
-                  if (correction.description &&
-                      suspicious.item.description.toLowerCase().includes(correction.description.toLowerCase().substring(0, 20)) ||
-                      correction.description.toLowerCase().includes(suspicious.item.description.toLowerCase().substring(0, 20))) {
-                    const oldPrice = extractedData.items[suspicious.index].unitPrice;
-                    const newPrice = correction.unitPrice;
-
-                    // Only apply if new price is higher and reasonable
-                    if (newPrice > oldPrice) {
-                      console.log(`✅ PRICE CORRECTED: "${suspicious.item.description}" $${oldPrice} → $${newPrice}`);
-                      extractedData.items[suspicious.index].unitPrice = newPrice;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (rereadError) {
-        console.error('⚠️ Re-read attempt failed:', rereadError.message);
-        // Continue with original (possibly wrong) prices
-      }
-    }
+    console.log('─'.repeat(60));
 
     // Clear image data from memory immediately
     req.file.buffer = null;
 
-    console.log(`✅ Receipt scan successful - found ${extractedData.items.length} item(s)`);
+    const totalDuration = Date.now() - startTime;
+    console.log(`\n🏁 SCAN COMPLETE in ${totalDuration}ms (API: ${apiDuration}ms)`);
+    console.log('╔══════════════════════════════════════════════════════════════╗');
+    console.log('║                      END SCAN REQUEST                         ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
     res.json({
       success: true,
@@ -984,9 +865,9 @@ Return JSON:
       req.file.buffer = null;
     }
 
-    console.error('❌ Receipt scan error:', error.message);
-    console.error('Stack trace:', error.stack);
-    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('\n❌ SCAN ERROR:');
+    console.error('   Message:', error.message);
+    console.error('   Stack:', error.stack);
 
     res.status(500).json({
       error: 'Failed to process receipt',

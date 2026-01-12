@@ -1188,7 +1188,7 @@ function AppContent() {
         return;
       }
 
-      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1.0 });
     } else {
       // Request media library permission
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1197,7 +1197,7 @@ function AppContent() {
         return;
       }
 
-      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1.0 });
     }
 
     if (result.canceled) return;
