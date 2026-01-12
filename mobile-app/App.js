@@ -1212,10 +1212,27 @@ function AppContent() {
     setScanMessage('Analyzing receipt...');
 
     try {
-      const formData = new FormData();
-      formData.append('receipt', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'receipt.jpg' });
+      const asset = result.assets[0];
 
-      if (__DEV__) console.log('📤 Sending receipt to server...');
+      // Log image details for debugging
+      console.log('📷 IMAGE DETAILS FROM PICKER:');
+      console.log(`   URI: ${asset.uri}`);
+      console.log(`   Width: ${asset.width}px`);
+      console.log(`   Height: ${asset.height}px`);
+      console.log(`   Type: ${asset.type || 'unknown'}`);
+      console.log(`   File size: ${asset.fileSize ? (asset.fileSize / 1024).toFixed(2) + ' KB' : 'unknown'}`);
+
+      // Use actual mime type from asset if available
+      const mimeType = asset.mimeType || asset.type || 'image/jpeg';
+
+      const formData = new FormData();
+      formData.append('receipt', {
+        uri: asset.uri,
+        type: mimeType,
+        name: `receipt.${mimeType.split('/')[1] || 'jpg'}`
+      });
+
+      console.log('📤 Sending receipt to server...');
 
       const response = await fetch(`${API_BASE_URL}/api/scan-receipt`, {
         method: 'POST',

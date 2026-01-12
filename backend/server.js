@@ -11,6 +11,7 @@ const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const sizeOf = require('image-size');
 
 const app = express();
 
@@ -719,24 +720,38 @@ app.post('/api/scan-receipt', upload.single('receipt'), async (req, res) => {
     console.log(`   - Size: ${(req.file.size / 1024).toFixed(2)} KB (${req.file.size} bytes)`);
     console.log(`   - Original name: ${req.file.originalname}`);
 
+    // Get and log image dimensions
+    try {
+      const dimensions = sizeOf(req.file.buffer);
+      console.log(`   - Dimensions: ${dimensions.width}x${dimensions.height}px`);
+      console.log(`   - Image format: ${dimensions.type}`);
+    } catch (dimError) {
+      console.log(`   - Dimensions: Unable to read (${dimError.message})`);
+    }
+
     // Convert buffer to base64 (stays in memory)
     const base64Image = req.file.buffer.toString('base64');
     const mediaType = req.file.mimetype || 'image/jpeg';
     console.log(`   - Base64 length: ${base64Image.length} characters`);
 
-    // Simple, direct prompt - no complex validation rules
-    const prompt = `This is a receipt from a precious metals dealer. Please read it carefully and extract:
+    // Simple, direct prompt - filter non-metal items
+    const prompt = `This is a receipt from a precious metals dealer. Read it carefully and extract ONLY precious metal products.
 
+IMPORTANT RULES:
+1. Read every number EXACTLY as printed - especially prices. Do not estimate or guess.
+2. ONLY include actual precious metal products: coins, bars, rounds
+3. EXCLUDE non-metal items like: tubes, capsules, storage boxes, display cases, albums, flips, holders
+4. EXCLUDE any item with a unit price under $10 (these are accessories, not metal)
+
+Extract:
 - Dealer name
-- Purchase date (MM/DD/YYYY format, convert to YYYY-MM-DD)
-- For each line item:
+- Purchase date (convert to YYYY-MM-DD format)
+- For each METAL item only:
   - Product description (exactly as printed)
   - Quantity
-  - Unit price (price per single item, as a number)
+  - Unit price (price per single item - read the EXACT number printed)
   - Metal type (gold/silver/platinum/palladium)
   - Weight per item in troy ounces
-
-Read every number EXACTLY as printed on the receipt. Do not estimate or round.
 
 Return as JSON only:
 {
