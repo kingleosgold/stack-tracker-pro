@@ -1287,8 +1287,23 @@ function AppContent() {
         await incrementScanCount();
       }
 
-      const data = { success: allItems.length > 0, items: allItems, dealer, purchaseDate };
-      if (__DEV__) console.log(`📄 Combined results: ${allItems.length} items from ${successCount}/${totalImages} images`);
+      // Deduplicate items (same description, quantity, and unit price)
+      const uniqueItems = [];
+      const seen = new Set();
+      for (const item of allItems) {
+        const key = `${item.description}|${item.quantity}|${item.unitPrice}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueItems.push(item);
+        }
+      }
+      const duplicatesRemoved = allItems.length - uniqueItems.length;
+      if (duplicatesRemoved > 0 && __DEV__) {
+        console.log(`🔄 Removed ${duplicatesRemoved} duplicate item(s)`);
+      }
+
+      const data = { success: uniqueItems.length > 0, items: uniqueItems, dealer, purchaseDate };
+      if (__DEV__) console.log(`📄 Combined results: ${uniqueItems.length} unique items from ${successCount}/${totalImages} images`);
 
       // Handle multi-item receipt response
       if (data.success && data.items && data.items.length > 0) {
