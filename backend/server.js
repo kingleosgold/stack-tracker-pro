@@ -88,6 +88,12 @@ const path = require('path');
 // Import web scraper for live spot prices and historical prices
 const { scrapeGoldSilverPrices, fetchHistoricalPrices } = require(path.join(__dirname, 'scrapers', 'gold-silver-scraper.js'));
 
+// Import historical price services
+const { isSupabaseAvailable } = require('./supabaseClient');
+const { fetchETFHistorical, slvToSpotSilver, gldToSpotGold, hasETFDataForDate, fetchBothETFs } = require('./services/etfPrices');
+const { calibrateRatios, getRatioForDate, needsCalibration } = require('./services/calibrateRatios');
+const { logPriceFetch, findLoggedPrice, findClosestLoggedPrice, getLogStats } = require('./services/priceLogger');
+
 // Cache for historical prices (to avoid repeated API calls for the same date)
 // Historical prices don't change, so we can cache them indefinitely
 const historicalPriceCache = {
@@ -139,6 +145,21 @@ async function fetchLiveSpotPrices() {
 
     console.log('✅ Spot prices updated:', spotPriceCache.prices);
     console.log(`📈 Total API requests: ${apiRequestCounter.total}`);
+
+    // Log price to database for historical minute-level data (non-blocking)
+    logPriceFetch(spotPriceCache.prices, fetchedPrices.source).catch(err => {
+      console.log('   Price logging skipped:', err.message);
+    });
+
+    // Calibrate ETF ratios once per day (non-blocking)
+    needsCalibration().then(async (needed) => {
+      if (needed && spotPriceCache.prices.gold && spotPriceCache.prices.silver) {
+        console.log('📐 Running daily ETF ratio calibration...');
+        await calibrateRatios(spotPriceCache.prices.gold, spotPriceCache.prices.silver);
+      }
+    }).catch(err => {
+      console.log('   Calibration check skipped:', err.message);
+    });
 
     return spotPriceCache.prices;
 
@@ -364,7 +385,7 @@ app.get('/api/debug/api-usage', (req, res) => {
 /**
  * Debug endpoint - check historical data
  */
-app.get('/api/historical-debug', (req, res) => {
+app.get('/api/historical-debug', async (req, res) => {
   const { date } = req.query;
 
   if (date) {
@@ -376,160 +397,326 @@ app.get('/api/historical-debug', (req, res) => {
       allKeysContaining: Object.keys(historicalData.gold).filter(k => k.includes(date)).slice(0, 10)
     });
   } else {
-    // Show sample data
+    // Show system status including price_log stats
     const goldKeys = Object.keys(historicalData.gold).slice(0, 20);
     const sample = {};
     goldKeys.forEach(k => {
       sample[k] = { gold: historicalData.gold[k], silver: historicalData.silver[k] };
     });
+
+    // Get price log stats if available
+    let priceLogStats = { available: false };
+    try {
+      priceLogStats = await getLogStats();
+    } catch (err) {
+      priceLogStats = { available: false, error: err.message };
+    }
+
     res.json({
-      totalKeys: Object.keys(historicalData.gold).length,
-      loaded: historicalData.loaded,
-      sampleKeys: goldKeys,
-      sampleData: sample
+      macroTrendsData: {
+        totalDays: Object.keys(historicalData.gold).length,
+        loaded: historicalData.loaded,
+        sampleKeys: goldKeys,
+        sampleData: sample
+      },
+      priceLog: priceLogStats,
+      supabaseConfigured: isSupabaseAvailable(),
+      dataSources: {
+        tier1: 'MacroTrends monthly data (1915-2006)',
+        tier2: 'Yahoo Finance SLV/GLD ETF data (2006-present)',
+        tier3: 'Our price_log database (minute-level, accumulating)'
+      }
     });
   }
 });
 
 /**
  * Get historical spot price for a specific date
- * Priority: 1) In-memory cache, 2) MetalPriceAPI, 3) Static JSON fallback
+ *
+ * THREE-TIER HISTORICAL DATA SYSTEM:
+ * 1. Pre-April 2006: Monthly prices from historical-prices.json (MacroTrends data)
+ * 2. April 2006 to Present: Daily/intraday from SLV/GLD ETF data via Yahoo Finance
+ * 3. Recent (if logged): Minute-level from our own price_log database
+ *
+ * Query params:
+ * - date: YYYY-MM-DD (required)
+ * - time: HH:MM (optional, for intraday estimation)
+ * - metal: 'gold' or 'silver' (default: returns both)
  */
 app.get('/api/historical-spot', async (req, res) => {
   try {
-    const { date, metal = 'gold' } = req.query;
+    const { date, time, metal } = req.query;
 
-    console.log(`📅 Historical spot lookup: ${date} for ${metal}`);
+    console.log(`📅 Historical spot lookup: ${date}${time ? ' ' + time : ''}`);
 
     if (!date) {
-      return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
+      return res.status(400).json({
+        success: false,
+        error: 'Date is required (YYYY-MM-DD)'
+      });
     }
 
-    // Normalize date format (YYYY-MM-DD)
+    // Normalize and validate date format
     const normalizedDate = date.trim();
-
-    // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
       console.log(`   Invalid date format: ${normalizedDate}`);
-      return res.status(400).json({ error: 'Date must be in YYYY-MM-DD format' });
+      return res.status(400).json({
+        success: false,
+        error: 'Date must be in YYYY-MM-DD format'
+      });
     }
 
-    // Validate metal type
-    if (metal !== 'gold' && metal !== 'silver') {
-      return res.status(400).json({ error: 'Metal must be "gold" or "silver"' });
+    // Validate time format if provided
+    if (time && !/^\d{2}:\d{2}$/.test(time)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Time must be in HH:MM format'
+      });
     }
 
-    // Don't allow future dates
     const requestedDate = new Date(normalizedDate + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    // Don't allow future dates
     if (requestedDate > today) {
       console.log(`   Future date requested: ${normalizedDate}, using current spot`);
       return res.json({
+        success: true,
         date: normalizedDate,
-        metal,
-        price: spotPriceCache.prices[metal] || 0,
+        time: time || null,
+        gold: spotPriceCache.prices.gold,
+        silver: spotPriceCache.prices.silver,
+        granularity: 'current',
         source: 'current-spot',
-        note: 'Future date requested, using current spot price',
-        success: true
+        note: 'Future date requested, using current spot price'
       });
     }
 
-    // PRIORITY 1: Check in-memory cache first
-    if (historicalPriceCache[metal][normalizedDate]) {
-      const cachedPrice = historicalPriceCache[metal][normalizedDate];
-      console.log(`   ✅ Cache hit for ${normalizedDate}: $${cachedPrice}`);
-      return res.json({
-        date: normalizedDate,
-        usedDate: normalizedDate,
-        metal,
-        price: cachedPrice,
-        source: 'cache',
-        success: true
-      });
+    const year = requestedDate.getFullYear();
+    const month = String(requestedDate.getMonth() + 1).padStart(2, '0');
+    const monthKey = `${year}-${month}`;
+
+    let goldPrice, silverPrice, granularity, source;
+    let dailyRange = null;
+    let note = null;
+
+    // ================================================================
+    // TIER 1: Pre-April 2006 - Use monthly MacroTrends data
+    // (SLV launched April 2006, so no ETF data before that)
+    // ================================================================
+    if (year < 2006 || (year === 2006 && requestedDate.getMonth() < 3)) {
+      console.log(`   Pre-2006 date, using MacroTrends monthly data`);
+
+      const monthData = {
+        gold: historicalData.gold[normalizedDate],
+        silver: historicalData.silver[normalizedDate]
+      };
+
+      if (monthData.gold && monthData.silver) {
+        goldPrice = monthData.gold;
+        silverPrice = monthData.silver;
+        granularity = 'monthly';
+        source = 'macrotrends';
+        note = 'Pre-2006 data uses monthly averages. Adjust manually if you know the exact price.';
+        console.log(`   ✅ Found MacroTrends data: Gold $${goldPrice}, Silver $${silverPrice}`);
+      } else {
+        console.log(`   ❌ No MacroTrends data for ${monthKey}`);
+        return res.status(404).json({
+          success: false,
+          error: `No historical data found for ${monthKey}`
+        });
+      }
     }
 
-    // PRIORITY 2: Fetch from MetalPriceAPI
-    console.log(`   Cache miss, fetching from MetalPriceAPI...`);
-    const apiResult = await fetchHistoricalPrices(normalizedDate);
+    // ================================================================
+    // TIER 2 & 3: April 2006 to Present - ETF data + our logged data
+    // ================================================================
+    else {
+      // First, check our own price_log for logged minute-level data
+      if (isSupabaseAvailable()) {
+        console.log(`   Checking price_log database...`);
+        const loggedPrice = time
+          ? await findLoggedPrice(normalizedDate, time, 5) // ±5 min window
+          : await findClosestLoggedPrice(normalizedDate);
 
-    if (apiResult && apiResult[metal]) {
-      const price = apiResult[metal];
-
-      // Cache both gold and silver from the API response
-      if (apiResult.gold) historicalPriceCache.gold[normalizedDate] = apiResult.gold;
-      if (apiResult.silver) historicalPriceCache.silver[normalizedDate] = apiResult.silver;
-
-      console.log(`   ✅ API success for ${normalizedDate}: $${price} (cached for future)`);
-      return res.json({
-        date: normalizedDate,
-        usedDate: normalizedDate,
-        metal,
-        price: Math.round(price * 100) / 100,
-        source: 'metalpriceapi',
-        success: true
-      });
-    }
-
-    // PRIORITY 3: Fall back to static JSON data (monthly averages)
-    console.log(`   API unavailable, falling back to static JSON data...`);
-    let price = historicalData[metal]?.[normalizedDate];
-    let usedDate = normalizedDate;
-    let source = 'static-json';
-
-    if (price) {
-      console.log(`   Found in static data: $${price} (monthly average)`);
-    } else {
-      // Try to find nearest date in static data
-      const targetDate = new Date(normalizedDate + 'T00:00:00');
-      const dates = Object.keys(historicalData[metal] || {}).sort();
-
-      let closestDate = null;
-      let minDiff = Infinity;
-
-      for (const d of dates) {
-        const diff = Math.abs(new Date(d + 'T00:00:00') - targetDate);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestDate = d;
+        if (loggedPrice) {
+          goldPrice = loggedPrice.gold;
+          silverPrice = loggedPrice.silver;
+          granularity = time ? 'minute' : 'logged_daily';
+          source = 'price_log';
+          console.log(`   ✅ Found in price_log: Gold $${goldPrice}, Silver $${silverPrice}`);
         }
       }
 
-      if (closestDate && minDiff < 30 * 24 * 60 * 60 * 1000) {
-        price = historicalData[metal][closestDate];
-        usedDate = closestDate;
-        source = 'static-json-nearest';
-        const daysAway = Math.floor(minDiff / (24 * 60 * 60 * 1000));
-        console.log(`   Using nearest static date ${closestDate}: $${price} (${daysAway} days away, monthly average)`);
+      // If no logged data, use ETF conversion
+      if (!goldPrice) {
+        console.log(`   Fetching ETF data from Yahoo Finance...`);
+
+        try {
+          const { slv: slvData, gld: gldData } = await fetchBothETFs(normalizedDate);
+
+          if (slvData && gldData) {
+            // Get the calibrated ratio for that date (or nearest)
+            const ratios = await getRatioForDate(normalizedDate);
+            console.log(`   Using ratios: SLV=${ratios.slv_ratio.toFixed(4)}, GLD=${ratios.gld_ratio.toFixed(4)}`);
+
+            // Convert ETF prices to spot prices
+            silverPrice = slvToSpotSilver(slvData.close, ratios.slv_ratio);
+            goldPrice = gldToSpotGold(gldData.close, ratios.gld_ratio);
+
+            // Provide daily range for user reference
+            dailyRange = {
+              silver: {
+                low: Math.round(slvToSpotSilver(slvData.low, ratios.slv_ratio) * 100) / 100,
+                high: Math.round(slvToSpotSilver(slvData.high, ratios.slv_ratio) * 100) / 100
+              },
+              gold: {
+                low: Math.round(gldToSpotGold(gldData.low, ratios.gld_ratio) * 100) / 100,
+                high: Math.round(gldToSpotGold(gldData.high, ratios.gld_ratio) * 100) / 100
+              }
+            };
+
+            granularity = 'daily';
+            source = 'etf_derived';
+
+            // If time was provided, estimate based on time of day
+            if (time) {
+              const hour = parseInt(time.split(':')[0]);
+
+              // Time-weighted estimation
+              // Morning (before 10am) -> closer to open
+              // Afternoon (after 2pm) -> closer to close
+              // Midday -> OHLC average
+              if (hour < 10) {
+                silverPrice = slvToSpotSilver(
+                  slvData.open * 0.7 + slvData.close * 0.3,
+                  ratios.slv_ratio
+                );
+                goldPrice = gldToSpotGold(
+                  gldData.open * 0.7 + gldData.close * 0.3,
+                  ratios.gld_ratio
+                );
+              } else if (hour >= 14) {
+                silverPrice = slvToSpotSilver(
+                  slvData.open * 0.3 + slvData.close * 0.7,
+                  ratios.slv_ratio
+                );
+                goldPrice = gldToSpotGold(
+                  gldData.open * 0.3 + gldData.close * 0.7,
+                  ratios.gld_ratio
+                );
+              } else {
+                // Midday - use OHLC average
+                silverPrice = slvToSpotSilver(
+                  (slvData.open + slvData.high + slvData.low + slvData.close) / 4,
+                  ratios.slv_ratio
+                );
+                goldPrice = gldToSpotGold(
+                  (gldData.open + gldData.high + gldData.low + gldData.close) / 4,
+                  ratios.gld_ratio
+                );
+              }
+              granularity = 'estimated_intraday';
+              note = `Estimated based on time of day. Actual range: Silver $${dailyRange.silver.low}-${dailyRange.silver.high}, Gold $${dailyRange.gold.low}-${dailyRange.gold.high}`;
+            }
+
+            console.log(`   ✅ ETF-derived prices: Gold $${goldPrice?.toFixed(2)}, Silver $${silverPrice?.toFixed(2)}`);
+          } else {
+            console.log(`   ETF data not available for ${normalizedDate}`);
+          }
+        } catch (etfError) {
+          console.log(`   ETF fetch error: ${etfError.message}`);
+        }
+      }
+
+      // Fallback to MetalPriceAPI if ETF failed
+      if (!goldPrice) {
+        console.log(`   Trying MetalPriceAPI...`);
+        const apiResult = await fetchHistoricalPrices(normalizedDate);
+
+        if (apiResult && apiResult.gold && apiResult.silver) {
+          goldPrice = apiResult.gold;
+          silverPrice = apiResult.silver;
+          granularity = 'daily';
+          source = 'metalpriceapi';
+
+          // Cache for future
+          historicalPriceCache.gold[normalizedDate] = goldPrice;
+          historicalPriceCache.silver[normalizedDate] = silverPrice;
+
+          console.log(`   ✅ MetalPriceAPI: Gold $${goldPrice}, Silver $${silverPrice}`);
+        }
+      }
+
+      // Final fallback to monthly MacroTrends data
+      if (!goldPrice) {
+        console.log(`   Falling back to MacroTrends monthly data...`);
+        const monthlyGold = historicalData.gold[normalizedDate];
+        const monthlySilver = historicalData.silver[normalizedDate];
+
+        if (monthlyGold && monthlySilver) {
+          goldPrice = monthlyGold;
+          silverPrice = monthlySilver;
+          granularity = 'monthly_fallback';
+          source = 'macrotrends';
+          note = 'ETF/API unavailable, using monthly average. Adjust manually if needed.';
+          console.log(`   ✅ MacroTrends fallback: Gold $${goldPrice}, Silver $${silverPrice}`);
+        }
+      }
+
+      // Last resort: current spot price
+      if (!goldPrice) {
+        console.log(`   No historical data found, using current spot`);
+        goldPrice = spotPriceCache.prices.gold;
+        silverPrice = spotPriceCache.prices.silver;
+        granularity = 'current_fallback';
+        source = 'current-spot';
+        note = 'Historical price not available, using current spot price';
       }
     }
 
-    if (price) {
-      return res.json({
-        date: normalizedDate,
-        usedDate,
-        metal,
-        price: Math.round(price * 100) / 100,
-        source,
-        note: source.includes('static') ? 'Monthly average (API unavailable)' : undefined,
-        success: true
-      });
+    // Round prices to 2 decimal places
+    goldPrice = Math.round(goldPrice * 100) / 100;
+    silverPrice = Math.round(silverPrice * 100) / 100;
+
+    // Build response
+    const response = {
+      success: true,
+      date: normalizedDate,
+      time: time || null,
+      gold: goldPrice,
+      silver: silverPrice,
+      granularity,
+      source
+    };
+
+    // Add daily range if available
+    if (dailyRange) {
+      response.dailyRange = dailyRange;
     }
 
-    // Final fallback: current spot price
-    console.log(`   No historical data found, using current spot: $${spotPriceCache.prices[metal]}`);
-    res.json({
-      date: normalizedDate,
-      metal,
-      price: spotPriceCache.prices[metal] || 0,
-      source: 'current-fallback',
-      note: 'Historical price not available, using current spot',
-      success: true
-    });
+    // Add note if applicable
+    if (note) {
+      response.note = note;
+    }
+
+    // If specific metal requested, also include just that price for backwards compatibility
+    if (metal === 'gold' || metal === 'silver') {
+      response.metal = metal;
+      response.price = metal === 'gold' ? goldPrice : silverPrice;
+    }
+
+    console.log(`   📊 Response: ${granularity} from ${source}`);
+    res.json(response);
+
   } catch (error) {
     console.error('❌ Historical spot error:', error);
     console.error('Stack trace:', error.stack);
-    res.status(500).json({ error: 'Failed to lookup historical price' });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to lookup historical price'
+    });
   }
 });
 

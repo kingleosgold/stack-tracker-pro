@@ -128,8 +128,52 @@ const PieChart = ({ data, size = 150, cardBgColor, textColor, mutedColor }) => {
   const total = data.reduce((sum, item) => sum + item.value, 0);
   if (total === 0) return null;
 
+  // Filter out 0-value segments and calculate percentages
+  const nonZeroSegments = data.filter((item) => item.value > 0);
+
+  // Calculate percentages for legend (all items)
+  const allSegments = data.map((item) => ({
+    ...item,
+    percentage: total > 0 ? item.value / total : 0,
+  }));
+
+  // Special case: single segment (100%) - just show a solid circle
+  if (nonZeroSegments.length === 1) {
+    const segment = nonZeroSegments[0];
+    return (
+      <View style={{ alignItems: 'center' }}>
+        <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: segment.color, position: 'relative' }}>
+          <View style={{
+            position: 'absolute',
+            width: size * 0.6,
+            height: size * 0.6,
+            borderRadius: size * 0.3,
+            backgroundColor: cardBgColor || '#1a1a2e',
+            top: size * 0.2,
+            left: size * 0.2,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+            <Text style={{ color: textColor || '#fff', fontWeight: '700', fontSize: 14 }}>
+              ${(total / 1000).toFixed(1)}k
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
+          {allSegments.map((seg, index) => (
+            <View key={index} style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: seg.color, marginRight: 6 }} />
+              <Text style={{ color: mutedColor || '#a1a1aa', fontSize: 12 }}>{seg.label} {(seg.percentage * 100).toFixed(0)}%</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  // Two segments: use the half-rectangle overlay technique
   let currentAngle = 0;
-  const segments = data.map((item) => {
+  const segments = nonZeroSegments.map((item) => {
     const percentage = item.value / total;
     const angle = percentage * 360;
     const startAngle = currentAngle;
@@ -170,7 +214,7 @@ const PieChart = ({ data, size = 150, cardBgColor, textColor, mutedColor }) => {
         </View>
       </View>
       <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
-        {segments.map((segment, index) => (
+        {allSegments.map((segment, index) => (
           <View key={index} style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: segment.color, marginRight: 6 }} />
             <Text style={{ color: mutedColor || '#a1a1aa', fontSize: 12 }}>{segment.label} {(segment.percentage * 100).toFixed(0)}%</Text>
@@ -831,7 +875,17 @@ function AppContent() {
   // Daily Snapshot: Check if it's a new day and update midnight value
   useEffect(() => {
     const checkAndUpdateMidnightSnapshot = async () => {
-      if (!isAuthenticated) return;
+      // IMPORTANT: Wait until data is loaded AND we have actual holdings
+      // This prevents saving $0 as midnight value before items load
+      if (!isAuthenticated || !dataLoaded) return;
+
+      // Only update if we have actual portfolio data (items loaded)
+      // If totalMeltValue is 0 with no items, that's valid - but if items exist, value should be > 0
+      const hasItems = silverItems.length > 0 || goldItems.length > 0;
+      if (hasItems && totalMeltValue === 0) {
+        // Items exist but value is 0 - likely spot prices haven't loaded yet, skip
+        return;
+      }
 
       const today = new Date().toDateString(); // e.g., "Mon Dec 29 2025"
 
@@ -852,7 +906,7 @@ function AppContent() {
 
     // Check on app open and when portfolio value changes
     checkAndUpdateMidnightSnapshot();
-  }, [isAuthenticated, totalMeltValue, midnightDate]);
+  }, [isAuthenticated, dataLoaded, totalMeltValue, midnightDate, silverItems.length, goldItems.length]);
 
   // Auto-refresh spot prices every 1 minute (when app is active)
   useEffect(() => {
@@ -929,6 +983,10 @@ function AppContent() {
     } else {
       // User can add more items
       resetForm();
+      // Ensure a valid metal is selected (not 'both') when adding new items
+      if (metalTab === 'both') {
+        setMetalTab('silver'); // Default to silver when adding from "Both" view
+      }
       setShowAddModal(true);
     }
   };
@@ -1162,30 +1220,72 @@ function AppContent() {
     }
   };
 
-  const fetchHistoricalSpot = async (date, metal) => {
+  /**
+   * Fetch historical spot price for a given date
+   *
+   * The API returns a three-tier response:
+   * - Pre-2006: Monthly averages (granularity: 'monthly')
+   * - 2006+: ETF-derived daily prices (granularity: 'daily' or 'estimated_intraday')
+   * - Recent: Minute-level from our database (granularity: 'minute')
+   *
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @param {string} metal - 'gold' or 'silver'
+   * @param {string} time - Optional time in HH:MM format for intraday estimation
+   * @returns {Object} { price, source, granularity, dailyRange, note }
+   */
+  const fetchHistoricalSpot = async (date, metal, time = null) => {
     if (!date || date.length < 10) return { price: null, source: null };
     try {
-      const url = `${API_BASE_URL}/api/historical-spot?date=${date}&metal=${metal || metalTab}`;
+      let url = `${API_BASE_URL}/api/historical-spot?date=${date}`;
+      if (metal) url += `&metal=${metal}`;
+      if (time) url += `&time=${time}`;
+
       if (__DEV__) console.log(`📅 Fetching historical spot: ${url}`);
       const response = await fetch(url);
       const data = await response.json();
+
       if (__DEV__) {
         console.log('📅 Historical spot API response:', JSON.stringify(data, null, 2));
-        if (data.source === 'static-json' || data.source === 'static-json-nearest') {
-          console.log('⚠️ WARNING: Using monthly average from static data');
+
+        // Log granularity-based warnings
+        if (data.granularity === 'monthly' || data.granularity === 'monthly_fallback') {
+          console.log('⚠️ Using monthly average (pre-2006 or fallback)');
+        } else if (data.granularity === 'estimated_intraday') {
+          console.log('📊 Using time-weighted intraday estimate');
+        } else if (data.granularity === 'minute') {
+          console.log('✅ Using exact minute-level price from our records');
         }
-        if (data.source === 'current-fallback') {
-          console.log('⚠️ WARNING: No historical data found, using current spot price as fallback');
+
+        if (data.note) {
+          console.log(`📝 Note: ${data.note}`);
         }
       }
-      if (data.success && data.price) {
-        return { price: data.price, source: data.source };
+
+      if (data.success) {
+        // Get the price for the requested metal (or default to the response format)
+        const metalKey = metal || metalTab;
+        const price = data.price || data[metalKey];
+
+        return {
+          price: price,
+          source: data.source,
+          granularity: data.granularity,
+          dailyRange: data.dailyRange ? data.dailyRange[metalKey] : null,
+          note: data.note,
+          // Also return full response for both metals if needed
+          gold: data.gold,
+          silver: data.silver
+        };
       }
     } catch (error) {
       if (__DEV__) console.log('❌ Could not fetch historical spot:', error.message);
     }
     // Return current spot as fallback with source indicator
-    return { price: metal === 'gold' ? goldSpot : silverSpot, source: 'client-fallback' };
+    return {
+      price: metal === 'gold' ? goldSpot : silverSpot,
+      source: 'client-fallback',
+      granularity: 'current'
+    };
   };
 
   const handleDateChange = async (date) => {
@@ -1196,6 +1296,14 @@ function AppContent() {
       if (result.price) {
         setForm(prev => ({ ...prev, spotPrice: result.price.toString() }));
         setSpotPriceSource(result.source);
+
+        // Log daily range info if available (for debugging)
+        if (__DEV__ && result.dailyRange) {
+          console.log(`📈 Daily range: $${result.dailyRange.low} - $${result.dailyRange.high}`);
+        }
+        if (__DEV__ && result.note) {
+          console.log(`📝 ${result.note}`);
+        }
       }
     }
   };
@@ -1878,7 +1986,10 @@ function AppContent() {
     }
 
     // Normal add/edit flow for holdings
-    if (metalTab === 'silver') {
+    // IMPORTANT: metalTab can be 'silver', 'gold', or 'both' - we must check explicitly
+    const targetMetal = metalTab === 'both' ? 'silver' : metalTab; // Default to silver if 'both' (shouldn't happen but safety)
+
+    if (targetMetal === 'silver') {
       if (editingItem) {
         setSilverItems(prev => prev.map(i => i.id === editingItem.id ? item : i));
       } else {
@@ -2876,13 +2987,23 @@ function AppContent() {
                     <View style={{ flex: 1 }}><FloatingInput label="Spot at Purchase" value={form.spotPrice} onChangeText={v => { setForm(p => ({ ...p, spotPrice: v })); setSpotPriceSource(null); }} placeholder="Auto" keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} /></View>
                   </View>
 
-                  {/* Warning for inaccurate historical spot prices */}
-                  {(spotPriceSource === 'static-json' || spotPriceSource === 'static-json-nearest') && (
-                    <Text style={{ color: '#E69500', fontSize: 12, marginTop: -4, marginBottom: 4 }}>
-                      ⚠️ Daily price unavailable - using monthly average. You can edit this manually.
+                  {/* Accuracy indicators for historical spot prices */}
+                  {spotPriceSource === 'price_log' && (
+                    <Text style={{ color: '#22C55E', fontSize: 12, marginTop: -4, marginBottom: 4 }}>
+                      ✅ Exact price from our records
                     </Text>
                   )}
-                  {(spotPriceSource === 'current-fallback' || spotPriceSource === 'client-fallback') && (
+                  {spotPriceSource === 'etf_derived' && (
+                    <Text style={{ color: '#3B82F6', fontSize: 12, marginTop: -4, marginBottom: 4 }}>
+                      📊 Daily ETF-derived price. You can adjust if needed.
+                    </Text>
+                  )}
+                  {(spotPriceSource === 'macrotrends' || spotPriceSource === 'static-json' || spotPriceSource === 'static-json-nearest') && (
+                    <Text style={{ color: '#E69500', fontSize: 12, marginTop: -4, marginBottom: 4 }}>
+                      ⚠️ Monthly average (daily price unavailable). You can edit this manually.
+                    </Text>
+                  )}
+                  {(spotPriceSource === 'current-spot' || spotPriceSource === 'current-fallback' || spotPriceSource === 'client-fallback' || spotPriceSource === 'current_fallback') && (
                     <Text style={{ color: '#E69500', fontSize: 12, marginTop: -4, marginBottom: 4 }}>
                       ⚠️ Historical price unavailable - using today's spot. You can edit this manually.
                     </Text>
