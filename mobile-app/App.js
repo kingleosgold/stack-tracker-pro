@@ -33,6 +33,273 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'https://stack-tracker-pro-production.up.railway.app';
 
 // ============================================
+// DEALER CSV TEMPLATES
+// ============================================
+const DEALER_TEMPLATES = {
+  'apmex': {
+    name: 'APMEX',
+    instructions: 'Go to My Account → Order History → Export to CSV',
+    columnMap: {
+      product: ['description', 'item description', 'product'],
+      quantity: ['qty', 'quantity'],
+      unitPrice: ['unit price', 'price'],
+      date: ['order date', 'date'],
+      dealer: null, // Will auto-fill with dealer name
+    },
+    detectPattern: /apmex|order.*id.*apmex/i,
+    autoDealer: 'APMEX',
+  },
+  'jmbullion': {
+    name: 'JM Bullion',
+    instructions: 'Go to Order History → Download Order History',
+    columnMap: {
+      product: ['product name', 'product', 'item', 'description'],
+      quantity: ['qty', 'quantity'],
+      unitPrice: ['price', 'unit price'],
+      date: ['date', 'order date', 'purchase date'],
+      dealer: null,
+    },
+    detectPattern: /jm.*bullion|jmbullion/i,
+    autoDealer: 'JM Bullion',
+  },
+  'sdbullion': {
+    name: 'SD Bullion',
+    instructions: 'Go to My Orders → Export to CSV',
+    columnMap: {
+      product: ['product', 'item name', 'description'],
+      quantity: ['quantity', 'qty'],
+      unitPrice: ['price', 'unit price', 'item price'],
+      date: ['order date', 'date'],
+      dealer: null,
+    },
+    detectPattern: /sd.*bullion|sdbullion/i,
+    autoDealer: 'SD Bullion',
+  },
+  'providentmetals': {
+    name: 'Provident Metals',
+    instructions: 'Go to Order History → Export',
+    columnMap: {
+      product: ['product', 'description', 'item'],
+      quantity: ['qty', 'quantity'],
+      unitPrice: ['price', 'unit price'],
+      date: ['date', 'order date'],
+      dealer: null,
+    },
+    detectPattern: /provident/i,
+    autoDealer: 'Provident Metals',
+  },
+  'herobullion': {
+    name: 'Hero Bullion',
+    instructions: 'Go to My Account → Order History → Export',
+    columnMap: {
+      product: ['product', 'description', 'item name'],
+      quantity: ['quantity', 'qty'],
+      unitPrice: ['price', 'unit price'],
+      date: ['date', 'order date'],
+      dealer: null,
+    },
+    detectPattern: /hero.*bullion/i,
+    autoDealer: 'Hero Bullion',
+  },
+  'boldpreciousmetals': {
+    name: 'BOLD Precious Metals',
+    instructions: 'Go to Account → Orders → Download CSV',
+    columnMap: {
+      product: ['item', 'product', 'description'],
+      quantity: ['qty', 'quantity'],
+      unitPrice: ['price', 'unit price'],
+      date: ['date', 'order date'],
+      dealer: null,
+    },
+    detectPattern: /bold.*precious|boldprecious/i,
+    autoDealer: 'BOLD Precious Metals',
+  },
+  'moneymetals': {
+    name: 'Money Metals Exchange',
+    instructions: 'Go to Order History → Export Orders',
+    columnMap: {
+      product: ['product', 'description', 'item'],
+      quantity: ['qty', 'quantity'],
+      unitPrice: ['price', 'unit price'],
+      date: ['date', 'order date'],
+      dealer: null,
+    },
+    detectPattern: /money.*metals/i,
+    autoDealer: 'Money Metals Exchange',
+  },
+  'generic': {
+    name: 'Generic / Custom',
+    instructions: 'CSV should have columns: Product Name, Metal Type, OZT, Quantity, Price, Date',
+    columnMap: {
+      product: ['product', 'name', 'item', 'description'],
+      metal: ['metal', 'type', 'metal type'],
+      quantity: ['quantity', 'qty', 'count'],
+      unitPrice: ['price', 'unit price', 'cost', 'unit cost'],
+      date: ['date', 'purchased', 'purchase date', 'order date'],
+      dealer: ['dealer', 'source', 'vendor', 'seller'],
+      ozt: ['oz', 'ozt', 'ounces', 'troy oz', 'weight'],
+    },
+    detectPattern: null, // Default fallback
+    autoDealer: null,
+  },
+};
+
+// ============================================
+// METAL & WEIGHT DETECTION HELPERS
+// ============================================
+
+/**
+ * Auto-detect metal type from product name
+ * Returns 'gold', 'silver', 'platinum', 'palladium', or null
+ */
+const detectMetalFromName = (productName) => {
+  if (!productName) return null;
+  const name = productName.toLowerCase();
+
+  // Gold detection patterns
+  const goldPatterns = [
+    /\bgold\b/,
+    /\bau\b/,
+    /\b(1|one|half|quarter|tenth)\s*(oz|ounce).*gold/,
+    /gold.*(eagle|buffalo|maple|krugerrand|panda|philharmonic|kangaroo|britannia)/,
+    /(eagle|buffalo|maple|krugerrand|panda|philharmonic|kangaroo|britannia).*gold/,
+    /\b(american|canadian|south african|chinese|austrian|australian|british).*gold/,
+    /\b24k\b|\b22k\b|\b14k\b|\b18k\b/,
+    /gold\s*(bar|coin|round)/,
+    /\bkilo.*gold\b|\bgold.*kilo\b/,
+  ];
+
+  // Silver detection patterns
+  const silverPatterns = [
+    /\bsilver\b/,
+    /\bag\b/,
+    /silver.*(eagle|maple|britannia|philharmonic|kookaburra|panda|libertad)/,
+    /(eagle|maple|britannia|philharmonic|kookaburra|panda|libertad).*silver/,
+    /\b(american|canadian|austrian|australian|mexican|chinese).*silver/,
+    /\bjunk\s*silver\b/,
+    /\b90%\s*(silver|coin)/,
+    /\b40%\s*silver/,
+    /silver\s*(bar|coin|round)/,
+    /\b(morgan|peace|walking liberty|mercury|roosevelt|washington|kennedy)\b/,
+    /\bgeneric.*silver\b|\bsilver.*generic\b/,
+    /\b999\s*silver\b|\bsilver.*999\b/,
+    /\.999\s*fine\s*silver/,
+  ];
+
+  // Platinum detection patterns
+  const platinumPatterns = [
+    /\bplatinum\b/,
+    /\bpt\b/,
+    /platinum.*(eagle|maple|britannia|philharmonic)/,
+  ];
+
+  // Palladium detection patterns
+  const palladiumPatterns = [
+    /\bpalladium\b/,
+    /\bpd\b/,
+    /palladium.*(eagle|maple)/,
+  ];
+
+  // Check patterns in order of likelihood
+  for (const pattern of silverPatterns) {
+    if (pattern.test(name)) return 'silver';
+  }
+  for (const pattern of goldPatterns) {
+    if (pattern.test(name)) return 'gold';
+  }
+  for (const pattern of platinumPatterns) {
+    if (pattern.test(name)) return 'platinum';
+  }
+  for (const pattern of palladiumPatterns) {
+    if (pattern.test(name)) return 'palladium';
+  }
+
+  return null;
+};
+
+/**
+ * Auto-detect troy ounces from product name
+ * Returns the OZT value as a number, or null if not detected
+ */
+const detectOztFromName = (productName) => {
+  if (!productName) return null;
+  const name = productName.toLowerCase();
+
+  // Common fractional gold sizes
+  const fractionalPatterns = [
+    { pattern: /\b1\/10\s*(oz|ounce|ozt)\b|\btenth\s*(oz|ounce)\b/i, ozt: 0.1 },
+    { pattern: /\b1\/4\s*(oz|ounce|ozt)\b|\bquarter\s*(oz|ounce)\b/i, ozt: 0.25 },
+    { pattern: /\b1\/2\s*(oz|ounce|ozt)\b|\bhalf\s*(oz|ounce)\b/i, ozt: 0.5 },
+    { pattern: /\b1\/20\s*(oz|ounce|ozt)\b/i, ozt: 0.05 },
+    { pattern: /\b2\s*(oz|ounce|ozt)\b/i, ozt: 2 },
+    { pattern: /\b5\s*(oz|ounce|ozt)\b/i, ozt: 5 },
+    { pattern: /\b10\s*(oz|ounce|ozt)\b/i, ozt: 10 },
+    { pattern: /\b100\s*(oz|ounce|ozt)\b/i, ozt: 100 },
+    { pattern: /\b1000\s*(oz|ounce|ozt)\b|\b1,000\s*(oz|ounce|ozt)\b/i, ozt: 1000 },
+    { pattern: /\b1\s*(oz|ounce|ozt)\b/i, ozt: 1 },
+  ];
+
+  // Kilo bars
+  if (/\bkilo\b|\b1\s*kg\b|\bkilogram\b/i.test(name)) {
+    return 32.15; // 1 kilo = 32.15 troy oz
+  }
+
+  // Check fractional patterns (order matters - check specific fractions first)
+  for (const { pattern, ozt } of fractionalPatterns) {
+    if (pattern.test(name)) return ozt;
+  }
+
+  // Try to extract numeric oz value: "10oz", "10 oz", "10-oz"
+  const ozMatch = name.match(/(\d+(?:\.\d+)?)\s*[-]?\s*(oz|ozt|ounce|troy\s*oz)/i);
+  if (ozMatch) {
+    const value = parseFloat(ozMatch[1]);
+    if (value > 0 && value <= 1000) return value;
+  }
+
+  // Gram bars: "1g", "5g", "10g", "50g", "100g"
+  const gramMatch = name.match(/(\d+(?:\.\d+)?)\s*[-]?\s*(g|gram|grams)\b/i);
+  if (gramMatch) {
+    const grams = parseFloat(gramMatch[1]);
+    if (grams > 0 && grams <= 1000) {
+      return parseFloat((grams / 31.1035).toFixed(4)); // Convert grams to ozt
+    }
+  }
+
+  // Common coin defaults (if metal detected but no weight)
+  // American Silver Eagle, Canadian Maple, etc. are 1oz
+  if (/\b(eagle|maple|britannia|philharmonic|buffalo|krugerrand|panda|libertad|kookaburra)\b/i.test(name)) {
+    // If no specific weight mentioned, these are typically 1oz
+    return 1;
+  }
+
+  // Junk silver - 90% silver coins have specific silver content
+  if (/\bjunk\b.*silver|90%/i.test(name)) {
+    // $1 face value of 90% silver = 0.715 ozt
+    // Can't determine without face value, return null
+    return null;
+  }
+
+  return null;
+};
+
+/**
+ * Auto-detect dealer from headers/file content
+ * Returns the dealer template key or 'generic'
+ */
+const detectDealerFromHeaders = (headers, fileContent = '') => {
+  const headerStr = headers.join(' ').toLowerCase();
+  const contentStr = (fileContent || '').toLowerCase();
+
+  for (const [key, template] of Object.entries(DEALER_TEMPLATES)) {
+    if (template.detectPattern && (template.detectPattern.test(headerStr) || template.detectPattern.test(contentStr))) {
+      return key;
+    }
+  }
+
+  return 'generic';
+};
+
+// ============================================
 // ERROR BOUNDARY - Catches crashes and shows error UI
 // ============================================
 class ErrorBoundary extends Component {
@@ -325,6 +592,9 @@ function AppContent() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importData, setImportData] = useState([]);
+  const [showDealerSelector, setShowDealerSelector] = useState(false);
+  const [selectedDealer, setSelectedDealer] = useState(null);
+  const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showScannedItemsPreview, setShowScannedItemsPreview] = useState(false);
   const [scannedItems, setScannedItems] = useState([]);
   const [scannedMetadata, setScannedMetadata] = useState({ purchaseDate: '', dealer: '' });
@@ -433,11 +703,28 @@ function AppContent() {
   };
 
   // Helper function to parse various date formats into YYYY-MM-DD
-  // Handles: 2023-03-21, Mar 21 2023, 03/21/2023, 21/03/2023, March 21, 2023, etc.
+  // Handles: 2023-03-21, Mar 21 2023, 03/21/2023, 21/03/2023, March 21, 2023, Excel serial numbers, etc.
   const parseDate = (dateStr) => {
     if (!dateStr) return '';
     const str = String(dateStr).trim();
     if (!str) return '';
+
+    // Excel serial number detection (5 digit number between ~25000-55000 for years 1968-2050)
+    // Excel dates are days since Jan 1, 1900 (with leap year bug - Excel thinks 1900 was leap year)
+    if (/^\d{5}$/.test(str)) {
+      const serial = parseInt(str);
+      if (serial >= 25000 && serial <= 55000) {
+        // Convert Excel serial to JS date
+        // Excel epoch is Jan 1, 1900, but has a bug counting Feb 29, 1900 (which didn't exist)
+        // For dates after Feb 28, 1900, subtract 1 day to account for this
+        const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899 (Excel's actual day 0)
+        const jsDate = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+        const y = jsDate.getFullYear();
+        const m = String(jsDate.getMonth() + 1).padStart(2, '0');
+        const d = String(jsDate.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+    }
 
     // Month name mappings
     const months = {
@@ -1679,7 +1966,7 @@ function AppContent() {
   };
 
   // ============================================
-  // SPREADSHEET IMPORT
+  // SPREADSHEET IMPORT (with Dealer Templates)
   // ============================================
 
   const importSpreadsheet = async () => {
@@ -1726,78 +2013,180 @@ function AppContent() {
         return;
       }
 
-      // Auto-map column names (flexible matching)
+      // Get headers for detection
       const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
+
+      // Try to auto-detect dealer from headers and filename
+      const detectedDealer = detectDealerFromHeaders(headers, file.name);
+
+      if (detectedDealer !== 'generic') {
+        // Auto-detected dealer - process immediately
+        if (__DEV__) console.log(`🏪 Auto-detected dealer: ${DEALER_TEMPLATES[detectedDealer].name}`);
+        await processSpreadsheetWithDealer(rows, headers, detectedDealer);
+      } else {
+        // No dealer detected - show dealer selector
+        setPendingImportFile({ rows, headers, fileName: file.name });
+        setShowDealerSelector(true);
+      }
+
+    } catch (error) {
+      console.error('❌ Import error:', error);
+      Alert.alert('Import Failed', `Could not import spreadsheet. This didn't count against your scan limit.\n\n${error.message}`);
+    }
+  };
+
+  // Process spreadsheet with selected dealer template
+  const processSpreadsheetWithDealer = async (rows, headers, dealerKey) => {
+    try {
+      const template = DEALER_TEMPLATES[dealerKey];
+      if (__DEV__) console.log(`📊 Processing with template: ${template.name}`);
+
+      // Build column finder for this template
       const findColumn = (possibleNames) => {
+        if (!possibleNames) return -1;
         for (const name of possibleNames) {
-          const index = headers.findIndex(h => h.includes(name));
+          const index = headers.findIndex(h => h.includes(name.toLowerCase()));
           if (index !== -1) return index;
         }
         return -1;
       };
 
+      // Map columns based on template
       const colMap = {
-        productName: findColumn(['product', 'name', 'item', 'description']),
-        metal: findColumn(['metal', 'type']),
-        quantity: findColumn(['quantity', 'qty', 'count', 'amount']),
-        unitPrice: findColumn(['price', 'unit price', 'cost', 'unit cost']),
-        date: findColumn(['date', 'purchased', 'purchase date', 'order date']),
-        dealer: findColumn(['dealer', 'source', 'vendor', 'seller']),
-        ozt: findColumn(['oz', 'ozt', 'ounces', 'troy oz', 'weight']),
+        productName: findColumn(template.columnMap.product),
+        metal: findColumn(template.columnMap.metal || []),
+        quantity: findColumn(template.columnMap.quantity),
+        unitPrice: findColumn(template.columnMap.unitPrice),
+        date: findColumn(template.columnMap.date),
+        dealer: findColumn(template.columnMap.dealer || []),
+        ozt: findColumn(template.columnMap.ozt || []),
       };
 
-      // Check if essential columns exist
-      if (colMap.productName === -1 || colMap.metal === -1) {
+      // For dealer-specific templates, also check generic column names as fallback
+      if (dealerKey !== 'generic') {
+        const genericTemplate = DEALER_TEMPLATES['generic'];
+        if (colMap.productName === -1) colMap.productName = findColumn(genericTemplate.columnMap.product);
+        if (colMap.metal === -1) colMap.metal = findColumn(genericTemplate.columnMap.metal);
+        if (colMap.quantity === -1) colMap.quantity = findColumn(genericTemplate.columnMap.quantity);
+        if (colMap.unitPrice === -1) colMap.unitPrice = findColumn(genericTemplate.columnMap.unitPrice);
+        if (colMap.date === -1) colMap.date = findColumn(genericTemplate.columnMap.date);
+        if (colMap.ozt === -1) colMap.ozt = findColumn(genericTemplate.columnMap.ozt);
+      }
+
+      // Check if we have at least a product name column
+      if (colMap.productName === -1) {
         Alert.alert(
           'Missing Columns',
-          "Spreadsheet must have at least \"Product Name\" and \"Metal Type\" columns. This didn't count against your scan limit.\n\nAccepted column names:\n- Product: product, name, item, description\n- Metal: metal, type"
+          `Couldn't find a product name column in this ${template.name} export. This didn't count against your scan limit.\n\nExpected columns: ${template.columnMap.product?.join(', ')}`
         );
         return;
       }
 
       // Parse data rows
       const parsedData = [];
+      let skippedCount = 0;
+
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length === 0) continue;
 
-        const productName = row[colMap.productName];
-        const metalRaw = String(row[colMap.metal] || '').toLowerCase().trim();
+        const productName = String(row[colMap.productName] || '').trim();
+        if (!productName) continue;
 
-        // Skip if essential data is missing
-        if (!productName || !metalRaw) continue;
+        // Get metal from column or auto-detect from product name
+        let metal = null;
+        if (colMap.metal !== -1) {
+          const metalRaw = String(row[colMap.metal] || '').toLowerCase().trim();
+          metal = metalRaw.includes('gold') ? 'gold'
+            : metalRaw.includes('silver') ? 'silver'
+            : metalRaw.includes('platinum') ? 'platinum'
+            : metalRaw.includes('palladium') ? 'palladium'
+            : null;
+        }
+        if (!metal) {
+          metal = detectMetalFromName(productName);
+        }
 
-        const metal = metalRaw.includes('gold') ? 'gold' : metalRaw.includes('silver') ? 'silver' : null;
-        if (!metal) continue; // Skip non-gold/silver items
+        // Skip if we still can't determine the metal
+        if (!metal) {
+          if (__DEV__) console.log(`⏭️ Skipping (no metal detected): ${productName}`);
+          skippedCount++;
+          continue;
+        }
+
+        // Get OZT from column or auto-detect from product name
+        let ozt = colMap.ozt !== -1 ? parseFloat(row[colMap.ozt]) : null;
+        if (!ozt || ozt <= 0) {
+          ozt = detectOztFromName(productName);
+        }
+        if (!ozt || ozt <= 0) {
+          ozt = 1; // Default to 1 oz if can't detect
+        }
+
+        // Get dealer from column or use template's auto-dealer
+        let source = '';
+        if (colMap.dealer !== -1 && row[colMap.dealer]) {
+          source = String(row[colMap.dealer]);
+        } else if (template.autoDealer) {
+          source = template.autoDealer;
+        }
+
+        // Parse other fields
+        const quantity = colMap.quantity !== -1 ? (parseInt(row[colMap.quantity]) || 1) : 1;
+        const unitPrice = colMap.unitPrice !== -1 ? (parseFloat(row[colMap.unitPrice]) || 0) : 0;
+        const dateRaw = colMap.date !== -1 ? row[colMap.date] : null;
+        const datePurchased = dateRaw ? parseDate(String(dateRaw)) : '';
 
         parsedData.push({
-          productName: String(productName || ''),
+          productName,
           metal,
-          quantity: parseInt(row[colMap.quantity]) || 1,
-          unitPrice: parseFloat(row[colMap.unitPrice]) || 0,
-          datePurchased: row[colMap.date] ? parseDate(String(row[colMap.date])) : '',
-          source: row[colMap.dealer] ? String(row[colMap.dealer]) : '',
-          ozt: parseFloat(row[colMap.ozt]) || 1,
+          quantity,
+          unitPrice,
+          datePurchased,
+          source,
+          ozt,
+          autoDetected: {
+            metal: colMap.metal === -1 || !row[colMap.metal],
+            ozt: colMap.ozt === -1 || !row[colMap.ozt] || parseFloat(row[colMap.ozt]) <= 0,
+          },
         });
       }
 
       if (parsedData.length === 0) {
-        Alert.alert('No Data Found', "No valid items found in spreadsheet. This didn't count against your scan limit.\n\nMake sure you have Product Name and Metal Type columns.");
+        Alert.alert(
+          'No Data Found',
+          `No valid items found in spreadsheet.${skippedCount > 0 ? ` ${skippedCount} items skipped (couldn't detect metal type).` : ''}\n\nThis didn't count against your scan limit.`
+        );
         return;
       }
 
       // Only increment scan count on successful parsing
       await incrementScanCount();
 
+      // Clear pending file and dealer selector
+      setPendingImportFile(null);
+      setShowDealerSelector(false);
+      setSelectedDealer(null);
+
       // Show preview
       setImportData(parsedData);
       setShowImportPreview(true);
 
-      if (__DEV__) console.log(`📊 Parsed ${parsedData.length} items from spreadsheet`);
+      const message = skippedCount > 0
+        ? `📊 Parsed ${parsedData.length} items from ${template.name} (${skippedCount} skipped)`
+        : `📊 Parsed ${parsedData.length} items from ${template.name}`;
+      if (__DEV__) console.log(message);
+
     } catch (error) {
-      console.error('❌ Import error:', error);
-      Alert.alert('Import Failed', `Could not import spreadsheet. This didn't count against your scan limit.\n\n${error.message}`);
+      console.error('❌ Process spreadsheet error:', error);
+      Alert.alert('Import Failed', `Could not process spreadsheet. This didn't count against your scan limit.\n\n${error.message}`);
     }
+  };
+
+  // Handle dealer selection from modal
+  const handleDealerSelected = async (dealerKey) => {
+    if (!pendingImportFile) return;
+    await processSpreadsheetWithDealer(pendingImportFile.rows, pendingImportFile.headers, dealerKey);
   };
 
   const confirmImport = () => {
@@ -3481,6 +3870,81 @@ function AppContent() {
         </View>
       </ModalWrapper>
 
+      {/* Dealer Selector Modal */}
+      <Modal visible={showDealerSelector} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff', maxHeight: '80%' }]}>
+            {/* Header */}
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Dealer</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDealerSelector(false);
+                  setPendingImportFile(null);
+                  setSelectedDealer(null);
+                }}
+                style={[styles.closeButton, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+              >
+                <Text style={[styles.closeButtonText, { color: colors.text }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+              <Text style={{ color: colors.muted, marginBottom: 16, fontSize: 14 }}>
+                Select the dealer this CSV export came from. This helps us map the columns correctly and auto-detect product details.
+              </Text>
+
+              {Object.entries(DEALER_TEMPLATES).map(([key, template]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: colors.cardBg,
+                      borderColor: selectedDealer === key ? colors.gold : colors.border,
+                      borderWidth: selectedDealer === key ? 2 : 1,
+                      marginBottom: 12,
+                      padding: 16,
+                    },
+                  ]}
+                  onPress={() => setSelectedDealer(key)}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: colors.text, fontWeight: '600', fontSize: 16 }}>{template.name}</Text>
+                    {selectedDealer === key && <Text style={{ color: colors.gold, fontSize: 18 }}>✓</Text>}
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{template.instructions}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <View style={{ height: 20 }} />
+            </ScrollView>
+
+            {/* Footer buttons */}
+            <View style={{ flexDirection: 'row', gap: 8, padding: 20, paddingTop: 0 }}>
+              <TouchableOpacity
+                style={[styles.buttonOutline, { flex: 1 }]}
+                onPress={() => {
+                  setShowDealerSelector(false);
+                  setPendingImportFile(null);
+                  setSelectedDealer(null);
+                }}
+              >
+                <Text style={{ color: colors.text }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, { flex: 1, backgroundColor: selectedDealer ? colors.success : colors.muted, opacity: selectedDealer ? 1 : 0.5 }]}
+                onPress={() => selectedDealer && handleDealerSelected(selectedDealer)}
+                disabled={!selectedDealer}
+              >
+                <Text style={{ color: '#000', fontWeight: '600' }}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Import Preview Modal */}
       {/* Import Preview Modal - Custom structure for FlatList */}
       <Modal visible={showImportPreview} animationType="slide" transparent>
@@ -3513,15 +3977,28 @@ function AppContent() {
               contentContainerStyle={{ paddingBottom: 20 }}
               renderItem={({ item, index }) => {
                 const itemColor = item.metal === 'silver' ? colors.silver : colors.gold;
+                const hasAutoDetected = item.autoDetected && (item.autoDetected.metal || item.autoDetected.ozt);
 
                 return (
                   <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, marginBottom: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: itemColor, marginHorizontal: 20 }]}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{item.productName}</Text>
-                        <Text style={{ color: itemColor, fontSize: 12, marginTop: 2 }}>
-                          {item.metal.toUpperCase()} • {item.ozt} oz{item.quantity > 1 ? ` • Qty: ${item.quantity}` : ''}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'wrap', gap: 4 }}>
+                          <Text style={{ color: itemColor, fontSize: 12 }}>
+                            {item.metal.toUpperCase()} • {item.ozt} oz{item.quantity > 1 ? ` • Qty: ${item.quantity}` : ''}
+                          </Text>
+                          {item.autoDetected?.metal && (
+                            <View style={{ backgroundColor: 'rgba(251,191,36,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={{ color: colors.gold, fontSize: 9, fontWeight: '600' }}>AUTO-METAL</Text>
+                            </View>
+                          )}
+                          {item.autoDetected?.ozt && (
+                            <View style={{ backgroundColor: 'rgba(148,163,184,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={{ color: colors.silver, fontSize: 9, fontWeight: '600' }}>AUTO-OZT</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                       <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>
                         ${(item.unitPrice * item.quantity).toFixed(2)}
