@@ -577,6 +577,7 @@ function AppContent() {
   const [goldSpot, setGoldSpot] = useState(4530);
   const [priceSource, setPriceSource] = useState('cached');
   const [priceTimestamp, setPriceTimestamp] = useState(null);
+  const [spotPricesLive, setSpotPricesLive] = useState(false); // True after successful API fetch
 
   // Portfolio Data
   const [silverItems, setSilverItems] = useState([]);
@@ -858,7 +859,32 @@ function AppContent() {
   const dailyChange = midnightValue !== null ? (totalMeltValue - midnightValue) : 0;
   const dailyChangePct = (midnightValue !== null && midnightValue > 0) ? ((dailyChange / midnightValue) * 100) : 0;
   const isDailyChangePositive = dailyChange >= 0;
-  const showDailyChange = midnightValue !== null && midnightDate === new Date().toDateString();
+
+  // Show daily change only if:
+  // 1. We have a midnight value
+  // 2. The midnight date is today
+  // 3. We have live prices (not stale defaults)
+  // 4. The percentage change is reasonable (< 15% in a day - metals rarely move more)
+  const isReasonableChange = Math.abs(dailyChangePct) < 15;
+  const isTodaySnapshot = midnightDate === new Date().toDateString();
+  const showDailyChange = midnightValue !== null
+    && midnightValue > 0
+    && isTodaySnapshot
+    && spotPricesLive
+    && isReasonableChange;
+
+  // If change is unreasonable and we have live prices, clear the stale snapshot
+  // This will trigger a recalibration on the next render cycle
+  useEffect(() => {
+    const clearStaleSnapshot = async () => {
+      if (spotPricesLive && isTodaySnapshot && midnightValue > 0 && !isReasonableChange) {
+        console.log(`⚠️ Unreasonable daily change (${dailyChangePct.toFixed(1)}%), clearing stale snapshot for recalibration...`);
+        await AsyncStorage.removeItem('stack_midnight_date');
+        setMidnightDate(null);
+      }
+    };
+    clearStaleSnapshot();
+  }, [spotPricesLive, isReasonableChange, isTodaySnapshot, midnightValue, dailyChangePct]);
 
   // Speculation
   const specSilverNum = parseFloat(specSilverPrice) || silverSpot;
@@ -1269,15 +1295,21 @@ function AppContent() {
   // Daily Snapshot: Check if it's a new day and update midnight value
   useEffect(() => {
     const checkAndUpdateMidnightSnapshot = async () => {
-      // IMPORTANT: Wait until data is loaded AND we have actual holdings
-      // This prevents saving $0 as midnight value before items load
-      if (!isAuthenticated || !dataLoaded) return;
+      // IMPORTANT: Wait until data is loaded AND we have live spot prices from API
+      // This prevents saving wrong values before prices are fetched
+      if (!isAuthenticated || !dataLoaded || !spotPricesLive) {
+        if (__DEV__ && !spotPricesLive && dataLoaded) {
+          console.log('📸 Snapshot deferred: waiting for live spot prices...');
+        }
+        return;
+      }
 
       // Only update if we have actual portfolio data (items loaded)
       // If totalMeltValue is 0 with no items, that's valid - but if items exist, value should be > 0
       const hasItems = silverItems.length > 0 || goldItems.length > 0;
       if (hasItems && totalMeltValue === 0) {
-        // Items exist but value is 0 - likely spot prices haven't loaded yet, skip
+        // Items exist but value is 0 - something is wrong, skip
+        if (__DEV__) console.log('📸 Snapshot skipped: items exist but value is 0');
         return;
       }
 
@@ -1287,20 +1319,22 @@ function AppContent() {
       if (!midnightDate || midnightDate !== today) {
         // Save current portfolio value as the new midnight snapshot
         const currentValue = totalMeltValue;
+        const snapshotTimestamp = new Date().toISOString();
 
         await AsyncStorage.setItem('stack_midnight_value', currentValue.toString());
         await AsyncStorage.setItem('stack_midnight_date', today);
+        await AsyncStorage.setItem('stack_midnight_timestamp', snapshotTimestamp);
 
         setMidnightValue(currentValue);
         setMidnightDate(today);
 
-        console.log(`📸 Daily snapshot updated: $${currentValue.toFixed(2)} on ${today}`);
+        console.log(`📸 Daily snapshot updated: $${currentValue.toFixed(2)} on ${today} (prices: Au $${goldSpot}, Ag $${silverSpot})`);
       }
     };
 
     // Check on app open and when portfolio value changes
     checkAndUpdateMidnightSnapshot();
-  }, [isAuthenticated, dataLoaded, totalMeltValue, midnightDate, silverItems.length, goldItems.length]);
+  }, [isAuthenticated, dataLoaded, spotPricesLive, totalMeltValue, midnightDate, silverItems.length, goldItems.length, goldSpot, silverSpot]);
 
   // Auto-refresh spot prices every 1 minute (when app is active)
   useEffect(() => {
@@ -1600,6 +1634,7 @@ function AppContent() {
         }
         setPriceSource(data.source || 'live');
         setPriceTimestamp(data.timestamp || new Date().toISOString());
+        setSpotPricesLive(true); // Mark that we have live prices from API
         await AsyncStorage.setItem('stack_price_timestamp', data.timestamp || new Date().toISOString());
 
         if (__DEV__) console.log(`💰 Prices updated: Gold $${data.gold}, Silver $${data.silver} (Source: ${data.source})`);
@@ -2724,7 +2759,10 @@ function AppContent() {
                 <View style={{ paddingVertical: 12 }}>
                   <Text style={{ color: colors.muted, fontSize: 24, textAlign: 'center' }}>—</Text>
                   <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
-                    No data yet. Check back tomorrow!
+                    {!spotPricesLive ? 'Waiting for live prices...' :
+                     !midnightValue ? 'No baseline yet. Check back tomorrow!' :
+                     !isReasonableChange ? 'Recalibrating...' :
+                     'No data yet'}
                   </Text>
                 </View>
               )}
