@@ -358,51 +358,11 @@ const withXcodeProjectMod = (config) => {
           console.log('[Widget] Error stack:', buildSettingsError.stack);
         }
 
-        // Now try to add files (non-critical, widget extension files are copied by withWidgetExtension)
-        try {
-          // Create a new PBXGroup for the widget
-          const widgetGroupKey = xcodeProject.pbxCreateGroup(WIDGET_NAME, WIDGET_NAME);
-
-          // Safely add widget group to main project group
-          try {
-            const mainGroupId = xcodeProject.getFirstProject().firstProject.mainGroup;
-            const groups = xcodeProject.hash.project.objects['PBXGroup'];
-            if (groups[mainGroupId] && groups[mainGroupId].children) {
-              groups[mainGroupId].children.push({ value: widgetGroupKey, comment: WIDGET_NAME });
-            }
-          } catch (groupError) {
-            console.log('[Widget] Could not add to main group:', groupError.message);
-          }
-
-          // Add source files to widget target
-          const widgetFiles = [
-            { name: 'StackTrackerWidget.swift', type: 'sourcecode.swift' },
-            { name: 'WidgetViews.swift', type: 'sourcecode.swift' },
-            { name: 'WidgetData.swift', type: 'sourcecode.swift' },
-          ];
-
-          for (const file of widgetFiles) {
-            const filePath = `${WIDGET_NAME}/${file.name}`;
-            try {
-              xcodeProject.addSourceFile(filePath, { target: target.uuid }, widgetGroupKey);
-            } catch (fileError) {
-              console.log(`[Widget] Could not add ${file.name}:`, fileError.message);
-            }
-          }
-
-          // Add Assets.xcassets
-          try {
-            xcodeProject.addResourceFile(
-              `${WIDGET_NAME}/Assets.xcassets`,
-              { target: target.uuid },
-              widgetGroupKey
-            );
-          } catch (assetError) {
-            console.log('[Widget] Could not add Assets.xcassets:', assetError.message);
-          }
-        } catch (fileOpsError) {
-          console.log('[Widget] File operations note:', fileOpsError.message);
-        }
+        // Note: File reference operations (addPbxGroup, addSourceFile, addResourceFile)
+        // are corrupting the pbxproj file syntax, causing parse errors.
+        // The widget target is created with build settings, but without source file references.
+        // We'll need to add source files through a different mechanism.
+        console.log('[Widget] Target and build settings configured. File refs skipped to avoid pbxproj corruption.');
       } else {
         console.log('[Widget] Warning: addTarget returned falsy value');
       }
