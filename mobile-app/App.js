@@ -2902,7 +2902,7 @@ function AppContent() {
                 <Text style={{ color: '#000', fontWeight: '600' }}>+ Add Purchase</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.buttonOutline, { paddingHorizontal: 16 }]}
+                style={[styles.buttonOutline, { paddingHorizontal: 16, backgroundColor: isDarkMode ? 'transparent' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : `${colors.gold}40` }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowSortMenu(true);
@@ -2912,7 +2912,7 @@ function AppContent() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={[styles.buttonOutline, { marginBottom: 16 }]} onPress={importSpreadsheet}>
+            <TouchableOpacity style={[styles.buttonOutline, { marginBottom: 16, backgroundColor: isDarkMode ? 'transparent' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : `${colors.gold}40` }]} onPress={importSpreadsheet}>
               <Text style={{ color: colors.text, fontWeight: '600' }}>📊 Import from Spreadsheet</Text>
             </TouchableOpacity>
 
@@ -2924,7 +2924,7 @@ function AppContent() {
                   return (
                     <TouchableOpacity
                       key={item.id}
-                      style={styles.itemCard}
+                      style={[styles.itemCard, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.05)' : `${colors.gold}30` }]}
                       onPress={() => viewItemDetail(item, metalTab)}
                       activeOpacity={0.7}
                     >
@@ -2969,7 +2969,7 @@ function AppContent() {
                       return (
                         <TouchableOpacity
                           key={item.id}
-                          style={styles.itemCard}
+                          style={[styles.itemCard, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.05)' : `${colors.gold}30` }]}
                           onPress={() => viewItemDetail(item, 'silver')}
                           activeOpacity={0.7}
                         >
@@ -3007,7 +3007,7 @@ function AppContent() {
                       return (
                         <TouchableOpacity
                           key={item.id}
-                          style={styles.itemCard}
+                          style={[styles.itemCard, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.05)' : `${colors.gold}30` }]}
                           onPress={() => viewItemDetail(item, 'gold')}
                           activeOpacity={0.7}
                         >
@@ -3450,13 +3450,13 @@ function AppContent() {
                     </View>
                   )}
 
-                  <View style={[styles.card, { backgroundColor: 'rgba(148,163,184,0.1)' }]}>
+                  <View style={[styles.card, { backgroundColor: isDarkMode ? 'rgba(148,163,184,0.1)' : `${colors.gold}15` }]}>
                     <Text style={{ color: colors.text, fontWeight: '600', marginBottom: 12 }}>📷 AI Receipt Scanner</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver, flex: 1 }]} onPress={() => showScanningTips('camera')}>
+                      <TouchableOpacity style={[styles.button, { backgroundColor: colors.gold, flex: 1 }]} onPress={() => showScanningTips('camera')}>
                         <Text style={{ color: '#000' }}>📷 Take Photo</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.button, { backgroundColor: colors.silver, flex: 1 }]} onPress={() => showScanningTips('gallery')}>
+                      <TouchableOpacity style={[styles.button, { backgroundColor: colors.gold, flex: 1 }]} onPress={() => showScanningTips('gallery')}>
                         <Text style={{ color: '#000' }}>🖼️ Upload Photos</Text>
                       </TouchableOpacity>
                     </View>
