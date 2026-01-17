@@ -95,6 +95,7 @@ const { fetchETFHistorical, slvToSpotSilver, gldToSpotGold, hasETFDataForDate, f
 const { calibrateRatios, getRatioForDate, needsCalibration } = require('./services/calibrateRatios');
 const { logPriceFetch, findLoggedPrice, findClosestLoggedPrice, getLogStats } = require('./services/priceLogger');
 const { createAlert, getAlertsForUser, deleteAlert, checkAlerts, getAlertCount } = require('./services/priceAlerts');
+const { saveSnapshot, getSnapshots, getLatestSnapshot, getSnapshotCount } = require('./services/portfolioSnapshots');
 
 // Cache for historical prices (to avoid repeated API calls for the same date)
 // Historical prices don't change, so we can cache them indefinitely
@@ -1118,6 +1119,128 @@ app.post('/api/alerts/check', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to check alerts'
+    });
+  }
+});
+
+// ============================================
+// PORTFOLIO SNAPSHOTS (Gold/Lifetime Feature - Analytics)
+// ============================================
+
+/**
+ * Save a daily portfolio snapshot
+ * POST /api/snapshots
+ * Body: { userId, totalValue, goldValue, silverValue, goldOz, silverOz, goldSpot, silverSpot }
+ */
+app.post('/api/snapshots', async (req, res) => {
+  try {
+    const { userId, totalValue, goldValue, silverValue, goldOz, silverOz, goldSpot, silverSpot } = req.body;
+
+    // Validate required fields
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      });
+    }
+
+    // Allow zero values but validate they're numbers
+    if (typeof totalValue !== 'number' || typeof goldValue !== 'number' ||
+        typeof silverValue !== 'number' || typeof goldOz !== 'number' ||
+        typeof silverOz !== 'number') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid numeric values provided'
+      });
+    }
+
+    const snapshot = await saveSnapshot({
+      userId,
+      totalValue,
+      goldValue,
+      silverValue,
+      goldOz,
+      silverOz,
+      goldSpot: goldSpot || 0,
+      silverSpot: silverSpot || 0,
+    });
+
+    res.json({
+      success: true,
+      snapshot
+    });
+
+  } catch (error) {
+    console.error('❌ Save snapshot error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save snapshot'
+    });
+  }
+});
+
+/**
+ * Get portfolio snapshots for analytics charts
+ * GET /api/snapshots/:userId
+ * Query params: ?range=1M (1W, 1M, 3M, 6M, 1Y, all)
+ */
+app.get('/api/snapshots/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { range = '1M' } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      });
+    }
+
+    const snapshots = await getSnapshots(userId, range);
+
+    res.json({
+      success: true,
+      snapshots,
+      count: snapshots.length,
+      range
+    });
+
+  } catch (error) {
+    console.error('❌ Get snapshots error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get snapshots'
+    });
+  }
+});
+
+/**
+ * Get latest snapshot for a user
+ * GET /api/snapshots/:userId/latest
+ */
+app.get('/api/snapshots/:userId/latest', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      });
+    }
+
+    const snapshot = await getLatestSnapshot(userId);
+
+    res.json({
+      success: true,
+      snapshot
+    });
+
+  } catch (error) {
+    console.error('❌ Get latest snapshot error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get latest snapshot'
     });
   }
 });

@@ -25,6 +25,7 @@ import * as Notifications from 'expo-notifications';
 import { CloudStorage, CloudStorageScope } from 'react-native-cloud-storage';
 import { initializePurchases, hasGoldEntitlement, getUserEntitlements } from './src/utils/entitlements';
 import { syncWidgetData, isWidgetKitAvailable } from './src/utils/widgetKit';
+import { LineChart, PieChart } from 'react-native-chart-kit';
 import GoldPaywall from './src/components/GoldPaywall';
 import Tutorial from './src/components/Tutorial';
 
@@ -665,6 +666,11 @@ function AppContent() {
     targetPrice: '',
     direction: 'above', // 'above' or 'below'
   });
+
+  // Analytics State (Gold/Lifetime feature)
+  const [analyticsSnapshots, setAnalyticsSnapshots] = useState([]);
+  const [analyticsRange, setAnalyticsRange] = useState('1M');
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Form State
   const [form, setForm] = useState({
@@ -1786,6 +1792,100 @@ function AppContent() {
 
     return () => subscription.remove();
   }, [hasGold, hasLifetimeAccess]);
+
+  // ============================================
+  // ANALYTICS (Gold/Lifetime Feature)
+  // ============================================
+
+  /**
+   * Save daily portfolio snapshot for analytics
+   * Only saves once per day (checks lastSnapshotDate in AsyncStorage)
+   */
+  const saveDailySnapshot = async () => {
+    // Only for Gold/Lifetime subscribers
+    if (!hasGold && !hasLifetimeAccess) return;
+    if (!revenueCatUserId) return;
+    if (!spotPricesLive) return; // Need live prices for accurate snapshot
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const lastSnapshot = await AsyncStorage.getItem('lastSnapshotDate');
+
+      // Only save one snapshot per day
+      if (lastSnapshot === today) {
+        if (__DEV__) console.log('📊 Snapshot already saved today');
+        return;
+      }
+
+      // Calculate portfolio values
+      const goldValue = totalGoldOzt * goldSpot;
+      const silverValue = totalSilverOzt * silverSpot;
+      const totalValue = goldValue + silverValue;
+
+      const response = await fetch(`${API_BASE_URL}/api/snapshots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: revenueCatUserId,
+          totalValue,
+          goldValue,
+          silverValue,
+          goldOz: totalGoldOzt,
+          silverOz: totalSilverOzt,
+          goldSpot,
+          silverSpot,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await AsyncStorage.setItem('lastSnapshotDate', today);
+        if (__DEV__) console.log('📊 Daily snapshot saved:', data.snapshot?.date);
+      }
+    } catch (error) {
+      console.error('❌ Error saving daily snapshot:', error.message);
+    }
+  };
+
+  /**
+   * Fetch portfolio snapshots for analytics charts
+   */
+  const fetchAnalyticsSnapshots = async (range = analyticsRange) => {
+    if (!hasGold && !hasLifetimeAccess) return;
+    if (!revenueCatUserId) return;
+
+    setAnalyticsLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/snapshots/${encodeURIComponent(revenueCatUserId)}?range=${range}`
+      );
+      const data = await response.json();
+
+      if (data.success && data.snapshots) {
+        setAnalyticsSnapshots(data.snapshots);
+        if (__DEV__) console.log(`📊 Loaded ${data.snapshots.length} snapshots for range: ${range}`);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching analytics:', error.message);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  // Save snapshot when data is loaded and prices are live
+  useEffect(() => {
+    if (dataLoaded && spotPricesLive && revenueCatUserId && (hasGold || hasLifetimeAccess)) {
+      saveDailySnapshot();
+    }
+  }, [dataLoaded, spotPricesLive, revenueCatUserId, hasGold, hasLifetimeAccess]);
+
+  // Fetch analytics when range changes or tab opens
+  useEffect(() => {
+    if (tab === 'analytics' && revenueCatUserId && (hasGold || hasLifetimeAccess)) {
+      fetchAnalyticsSnapshots(analyticsRange);
+    }
+  }, [tab, analyticsRange, revenueCatUserId, hasGold, hasLifetimeAccess]);
 
   // ============================================
   // CLOUD BACKUP
@@ -3351,6 +3451,398 @@ function AppContent() {
           </>
         )}
 
+        {/* ANALYTICS TAB */}
+        {tab === 'analytics' && (
+          <>
+            {/* Analytics Header */}
+            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>📈 Portfolio Analytics</Text>
+                  {!hasGoldAccess && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
+                      <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '600' }}>🔒 GOLD</Text>
+                    </View>
+                  )}
+                </View>
+                {analyticsLoading && <ActivityIndicator size="small" color={colors.gold} />}
+              </View>
+
+              {!hasGoldAccess ? (
+                <>
+                  <Text style={{ color: colors.muted, marginBottom: 12 }}>
+                    Upgrade to Gold to track your portfolio value over time with charts and detailed analytics
+                  </Text>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: colors.gold,
+                      padding: 12,
+                      borderRadius: 8,
+                      gap: 8,
+                    }}
+                    onPress={() => setShowPaywallModal(true)}
+                  >
+                    <Text style={{ color: '#000', fontWeight: '600' }}>Unlock Analytics</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={{ color: colors.muted }}>
+                  Track your portfolio performance with historical data and insights
+                </Text>
+              )}
+            </View>
+
+            {hasGoldAccess && (
+              <>
+                {/* Time Range Selector */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Time Range</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {['1W', '1M', '3M', '6M', '1Y', 'ALL'].map((range) => (
+                      <TouchableOpacity
+                        key={range}
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 8,
+                          borderRadius: 8,
+                          backgroundColor: analyticsRange === range ? colors.gold : (isDarkMode ? '#27272a' : '#f4f4f5'),
+                        }}
+                        onPress={() => setAnalyticsRange(range)}
+                      >
+                        <Text style={{
+                          color: analyticsRange === range ? '#000' : colors.text,
+                          fontWeight: analyticsRange === range ? '600' : '400',
+                        }}>
+                          {range === 'ALL' ? 'All Time' : range}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Portfolio Value Chart */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Portfolio Value</Text>
+                  {analyticsSnapshots.length > 1 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <LineChart
+                        data={{
+                          labels: analyticsSnapshots.slice(-7).map(s => {
+                            const d = new Date(s.date);
+                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                          }),
+                          datasets: [{
+                            data: analyticsSnapshots.slice(-7).map(s => s.total_value || 0),
+                            color: (opacity = 1) => `rgba(251, 191, 36, ${opacity})`,
+                            strokeWidth: 2,
+                          }],
+                        }}
+                        width={Math.max(SCREEN_WIDTH - 48, analyticsSnapshots.slice(-7).length * 50)}
+                        height={200}
+                        yAxisLabel="$"
+                        yAxisSuffix=""
+                        chartConfig={{
+                          backgroundColor: colors.cardBg,
+                          backgroundGradientFrom: colors.cardBg,
+                          backgroundGradientTo: colors.cardBg,
+                          decimalPlaces: 0,
+                          color: (opacity = 1) => `rgba(251, 191, 36, ${opacity})`,
+                          labelColor: (opacity = 1) => colors.muted,
+                          style: { borderRadius: 8 },
+                          propsForDots: {
+                            r: '4',
+                            strokeWidth: '2',
+                            stroke: colors.gold,
+                          },
+                        }}
+                        bezier
+                        style={{ borderRadius: 8 }}
+                      />
+                    </ScrollView>
+                  ) : (
+                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                      <Text style={{ fontSize: 32, marginBottom: 12 }}>📊</Text>
+                      <Text style={{ color: colors.muted, textAlign: 'center' }}>
+                        {analyticsSnapshots.length === 0
+                          ? 'No data yet. Snapshots are saved daily when you open the app.'
+                          : 'Need at least 2 data points to show a chart. Check back tomorrow!'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Holdings Breakdown */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Holdings Breakdown</Text>
+                  {totalMeltValue > 0 ? (
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                        <PieChart
+                          data={[
+                            {
+                              name: 'Gold',
+                              value: totalGoldOzt * goldSpot,
+                              color: colors.gold,
+                              legendFontColor: colors.text,
+                              legendFontSize: 12,
+                            },
+                            {
+                              name: 'Silver',
+                              value: totalSilverOzt * silverSpot,
+                              color: colors.silver,
+                              legendFontColor: colors.text,
+                              legendFontSize: 12,
+                            },
+                          ]}
+                          width={SCREEN_WIDTH - 48}
+                          height={160}
+                          chartConfig={{
+                            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                          }}
+                          accessor="value"
+                          backgroundColor="transparent"
+                          paddingLeft="15"
+                          absolute
+                        />
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <View style={{ alignItems: 'center', flex: 1 }}>
+                          <Text style={{ color: colors.gold, fontSize: 18, fontWeight: '600' }}>
+                            {((totalGoldOzt * goldSpot) / totalMeltValue * 100).toFixed(1)}%
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>Gold</Text>
+                        </View>
+                        <View style={{ alignItems: 'center', flex: 1 }}>
+                          <Text style={{ color: colors.silver, fontSize: 18, fontWeight: '600' }}>
+                            {((totalSilverOzt * silverSpot) / totalMeltValue * 100).toFixed(1)}%
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>Silver</Text>
+                        </View>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                      <Text style={{ color: colors.muted }}>Add holdings to see breakdown</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Cost Basis Analysis */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Cost Basis Analysis</Text>
+
+                  {/* Gold Analysis */}
+                  {goldItems.length > 0 && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ color: colors.gold, fontWeight: '600', marginBottom: 8 }}>Gold</Text>
+                      {(() => {
+                        const totalGoldCost = goldItems.reduce((sum, item) => sum + ((item.unitPrice || 0) * (item.quantity || 1)), 0);
+                        const goldMeltValue = totalGoldOzt * goldSpot;
+                        const goldPL = goldMeltValue - totalGoldCost;
+                        const goldPLPercent = totalGoldCost > 0 ? (goldPL / totalGoldCost) * 100 : 0;
+                        const avgGoldCostPerOz = totalGoldOzt > 0 ? totalGoldCost / totalGoldOzt : 0;
+                        return (
+                          <>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Total Cost</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(totalGoldCost)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Current Value</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(goldMeltValue)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Avg Cost/oz</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(avgGoldCostPerOz)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Unrealized P/L</Text>
+                              <Text style={{ color: goldPL >= 0 ? colors.success : colors.error }}>
+                                {goldPL >= 0 ? '+' : ''}${formatCurrency(goldPL)} ({goldPLPercent >= 0 ? '+' : ''}{goldPLPercent.toFixed(1)}%)
+                              </Text>
+                            </View>
+                          </>
+                        );
+                      })()}
+                    </View>
+                  )}
+
+                  {/* Silver Analysis */}
+                  {silverItems.length > 0 && (
+                    <View>
+                      <Text style={{ color: colors.silver, fontWeight: '600', marginBottom: 8 }}>Silver</Text>
+                      {(() => {
+                        const totalSilverCost = silverItems.reduce((sum, item) => sum + ((item.unitPrice || 0) * (item.quantity || 1)), 0);
+                        const silverMeltValue = totalSilverOzt * silverSpot;
+                        const silverPL = silverMeltValue - totalSilverCost;
+                        const silverPLPercent = totalSilverCost > 0 ? (silverPL / totalSilverCost) * 100 : 0;
+                        const avgSilverCostPerOz = totalSilverOzt > 0 ? totalSilverCost / totalSilverOzt : 0;
+                        return (
+                          <>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Total Cost</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(totalSilverCost)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Current Value</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(silverMeltValue)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Avg Cost/oz</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(avgSilverCostPerOz)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Unrealized P/L</Text>
+                              <Text style={{ color: silverPL >= 0 ? colors.success : colors.error }}>
+                                {silverPL >= 0 ? '+' : ''}${formatCurrency(silverPL)} ({silverPLPercent >= 0 ? '+' : ''}{silverPLPercent.toFixed(1)}%)
+                              </Text>
+                            </View>
+                          </>
+                        );
+                      })()}
+                    </View>
+                  )}
+
+                  {goldItems.length === 0 && silverItems.length === 0 && (
+                    <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: 20 }}>
+                      Add holdings to see cost analysis
+                    </Text>
+                  )}
+                </View>
+
+                {/* Premium Analysis */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Premium Analysis</Text>
+
+                  {(() => {
+                    // Calculate average premium for each metal
+                    const goldPremiums = goldItems.filter(i => i.premium && i.premium > 0);
+                    const silverPremiums = silverItems.filter(i => i.premium && i.premium > 0);
+
+                    const avgGoldPremium = goldPremiums.length > 0
+                      ? goldPremiums.reduce((sum, i) => sum + (i.premium || 0), 0) / goldPremiums.length
+                      : 0;
+                    const avgSilverPremium = silverPremiums.length > 0
+                      ? silverPremiums.reduce((sum, i) => sum + (i.premium || 0), 0) / silverPremiums.length
+                      : 0;
+
+                    // Calculate average premium percent
+                    const avgGoldPremiumPct = goldPremiums.length > 0
+                      ? goldPremiums.reduce((sum, i) => sum + calculatePremiumPercent(i.premium || 0, i.unitPrice || 0), 0) / goldPremiums.length
+                      : 0;
+                    const avgSilverPremiumPct = silverPremiums.length > 0
+                      ? silverPremiums.reduce((sum, i) => sum + calculatePremiumPercent(i.premium || 0, i.unitPrice || 0), 0) / silverPremiums.length
+                      : 0;
+
+                    return (
+                      <>
+                        {goldPremiums.length > 0 && (
+                          <View style={{ marginBottom: 16 }}>
+                            <Text style={{ color: colors.gold, fontWeight: '600', marginBottom: 8 }}>Gold ({goldPremiums.length} items with premium data)</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Avg Premium/oz</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(avgGoldPremium)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ color: colors.muted }}>Avg Premium %</Text>
+                              <Text style={{ color: colors.text }}>{avgGoldPremiumPct.toFixed(1)}%</Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {silverPremiums.length > 0 && (
+                          <View>
+                            <Text style={{ color: colors.silver, fontWeight: '600', marginBottom: 8 }}>Silver ({silverPremiums.length} items with premium data)</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ color: colors.muted }}>Avg Premium/oz</Text>
+                              <Text style={{ color: colors.text }}>${formatCurrency(avgSilverPremium)}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ color: colors.muted }}>Avg Premium %</Text>
+                              <Text style={{ color: colors.text }}>{avgSilverPremiumPct.toFixed(1)}%</Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {goldPremiums.length === 0 && silverPremiums.length === 0 && (
+                          <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: 20 }}>
+                            Premium data not available. Add items with premium info to see analysis.
+                          </Text>
+                        )}
+                      </>
+                    );
+                  })()}
+                </View>
+
+                {/* Purchase Stats */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Purchase Statistics</Text>
+
+                  {(() => {
+                    const allItems = [...goldItems, ...silverItems];
+                    const itemsWithDates = allItems.filter(i => i.datePurchased);
+                    const dealers = [...new Set(allItems.map(i => i.source).filter(Boolean))];
+
+                    // Find earliest and latest purchase
+                    const sortedByDate = itemsWithDates.sort((a, b) =>
+                      new Date(a.datePurchased) - new Date(b.datePurchased)
+                    );
+                    const firstPurchase = sortedByDate[0]?.datePurchased;
+                    const lastPurchase = sortedByDate[sortedByDate.length - 1]?.datePurchased;
+
+                    return (
+                      <>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <Text style={{ color: colors.muted }}>Total Items</Text>
+                          <Text style={{ color: colors.text }}>{allItems.length}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <Text style={{ color: colors.muted }}>Unique Dealers</Text>
+                          <Text style={{ color: colors.text }}>{dealers.length}</Text>
+                        </View>
+                        {firstPurchase && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <Text style={{ color: colors.muted }}>First Purchase</Text>
+                            <Text style={{ color: colors.text }}>{firstPurchase}</Text>
+                          </View>
+                        )}
+                        {lastPurchase && lastPurchase !== firstPurchase && (
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <Text style={{ color: colors.muted }}>Latest Purchase</Text>
+                            <Text style={{ color: colors.text }}>{lastPurchase}</Text>
+                          </View>
+                        )}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <Text style={{ color: colors.muted }}>Total Gold</Text>
+                          <Text style={{ color: colors.gold }}>{totalGoldOzt.toFixed(4)} oz</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ color: colors.muted }}>Total Silver</Text>
+                          <Text style={{ color: colors.silver }}>{totalSilverOzt.toFixed(4)} oz</Text>
+                        </View>
+                      </>
+                    );
+                  })()}
+                </View>
+
+                {/* Data Points Info */}
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 8 }]}>Snapshot Data</Text>
+                  <Text style={{ color: colors.muted, marginBottom: 8 }}>
+                    {analyticsSnapshots.length} data point{analyticsSnapshots.length !== 1 ? 's' : ''} in selected range
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Portfolio snapshots are saved once daily when you open the app. More data points = better charts!
+                  </Text>
+                </View>
+              </>
+            )}
+          </>
+        )}
+
         {/* SETTINGS TAB */}
         {tab === 'settings' && (
           <>
@@ -3854,7 +4346,7 @@ function AppContent() {
           </>
         )}
 
-        <View style={{ height: tab === 'settings' ? 300 : 100 }} />
+        <View style={{ height: (tab === 'settings' || tab === 'analytics') ? 300 : 100 }} />
       </ScrollView>
 
       {/* Upgrade to Gold Banner */}
@@ -3891,12 +4383,13 @@ function AppContent() {
         {[
           { key: 'dashboard', icon: '📊', label: 'Dashboard' },
           { key: 'holdings', icon: '🪙', label: 'Holdings' },
+          { key: 'analytics', icon: '📈', label: 'Analytics' },
           { key: 'tools', icon: '🧮', label: 'Tools' },
           { key: 'settings', icon: '⚙️', label: 'Settings' },
         ].map(t => (
           <TouchableOpacity key={t.key} style={styles.bottomTab} onPress={() => setTab(t.key)}>
-            <Text style={{ fontSize: 20 }}>{t.icon}</Text>
-            <Text style={{ color: tab === t.key ? colors.text : colors.muted, fontSize: 10 }}>{t.label}</Text>
+            <Text style={{ fontSize: 18 }}>{t.icon}</Text>
+            <Text style={{ color: tab === t.key ? colors.text : colors.muted, fontSize: 9 }}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
