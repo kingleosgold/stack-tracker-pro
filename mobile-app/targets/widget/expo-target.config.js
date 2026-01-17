@@ -17,10 +17,8 @@ module.exports = {
   // Frameworks required for the widget
   frameworks: ["SwiftUI", "WidgetKit"],
 
-  // App Group for sharing data with main app
-  entitlements: {
-    "com.apple.security.application-groups": ["group.com.stacktrackerpro.shared"],
-  },
+  // Note: App Group entitlements are in StackTrackerWidget.entitlements file
+  // Using explicit file to ensure exact match with provisioning profile
 
   // iOS deployment target
   deploymentTarget: "17.0",
