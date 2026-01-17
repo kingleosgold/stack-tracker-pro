@@ -2756,8 +2756,8 @@ function AppContent() {
               <Text style={[styles.cardTitle, { color: colors.text }]}>📊 Holdings Breakdown</Text>
               <PieChart
                 data={[
-                  { label: 'Silver', value: silverMeltValue, color: colors.silver },
                   { label: 'Gold', value: goldMeltValue, color: colors.gold },
+                  { label: 'Silver', value: silverMeltValue, color: colors.silver },
                 ]}
                 size={140}
                 cardBgColor={colors.cardBg}
