@@ -805,7 +805,7 @@ app.get('/api/test-gemini', async (req, res) => {
     console.log('🧪 Testing Gemini API connection...');
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
       {
         contents: [{
           parts: [{ text: 'Say "Gemini is working!" in exactly those words.' }]
@@ -830,7 +830,7 @@ app.get('/api/test-gemini', async (req, res) => {
       configured: true,
       apiKeyPrefix: geminiApiKey.substring(0, 8) + '...',
       response: responseText,
-      model: 'gemini-1.5-flash'
+      model: 'gemini-2.0-flash'
     });
 
   } catch (error) {
@@ -1030,10 +1030,10 @@ If a field is unreadable, use null. Metal must be: gold, silver, platinum, or pa
 
     if (geminiApiKey) {
       try {
-        console.log('🤖 Calling Gemini 1.5 Flash API...');
+        console.log('🤖 Calling Gemini 2.0 Flash API...');
 
         const geminiResponse = await axios.post(
-          `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
           {
             contents: [{
               parts: [
@@ -1059,7 +1059,7 @@ If a field is unreadable, use null. Metal must be: gold, silver, platinum, or pa
 
         if (geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
           responseText = geminiResponse.data.candidates[0].content.parts[0].text;
-          apiSource = 'gemini-1.5-flash';
+          apiSource = 'gemini-2.0-flash';
           console.log('✅ Gemini response received');
         } else {
           throw new Error('Invalid Gemini response structure');
