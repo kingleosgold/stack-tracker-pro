@@ -252,15 +252,15 @@ const withXcodeProjectMod = (config) => {
         // Create a new PBXGroup for the widget
         const widgetGroupKey = xcodeProject.pbxCreateGroup(WIDGET_NAME, WIDGET_NAME);
 
-        // Get the main group
-        const groups = xcodeProject.hash.project.objects['PBXGroup'];
-        for (const key in groups) {
-          if (groups[key].name === undefined && groups[key].path === undefined) {
-            // This is likely the main group
-            if (!groups[key].children) groups[key].children = [];
-            groups[key].children.push({ value: widgetGroupKey, comment: WIDGET_NAME });
-            break;
+        // Safely add widget group to main project group
+        try {
+          const mainGroupId = xcodeProject.getFirstProject().firstProject.mainGroup;
+          const groups = xcodeProject.hash.project.objects['PBXGroup'];
+          if (groups[mainGroupId] && groups[mainGroupId].children) {
+            groups[mainGroupId].children.push({ value: widgetGroupKey, comment: WIDGET_NAME });
           }
+        } catch (groupError) {
+          console.log('Could not add widget to main group:', groupError.message);
         }
 
         // Add source files to widget target
@@ -282,37 +282,58 @@ const withXcodeProjectMod = (config) => {
           widgetGroupKey
         );
 
-        // Configure build settings
+        // Configure build settings for the widget target
+        // Get the target's build configuration list
+        const nativeTargets = xcodeProject.hash.project.objects['PBXNativeTarget'];
         const configurations = xcodeProject.pbxXCBuildConfigurationSection();
-        for (const key in configurations) {
-          const config = configurations[key];
-          if (config.buildSettings) {
-            const buildSettings = config.buildSettings;
 
-            // Check if this is a widget configuration
-            if (buildSettings.PRODUCT_BUNDLE_IDENTIFIER === widgetBundleId ||
-                (buildSettings.INFOPLIST_FILE && buildSettings.INFOPLIST_FILE.includes(WIDGET_NAME))) {
+        // Find our widget target and its build configuration list
+        for (const targetKey in nativeTargets) {
+          const nativeTarget = nativeTargets[targetKey];
+          if (nativeTarget && nativeTarget.name === targetName) {
+            const buildConfigListId = nativeTarget.buildConfigurationList;
 
-              buildSettings.SWIFT_VERSION = '5.0';
-              buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '17.0';
-              buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
-              buildSettings.CODE_SIGN_ENTITLEMENTS = `${WIDGET_NAME}/${WIDGET_NAME}.entitlements`;
-              buildSettings.ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = 'WidgetBackground';
-              buildSettings.ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = 'AccentColor';
-              buildSettings.GENERATE_INFOPLIST_FILE = 'YES';
-              buildSettings.MARKETING_VERSION = '1.0';
-              buildSettings.CURRENT_PROJECT_VERSION = '1';
-              buildSettings.INFOPLIST_FILE = `${WIDGET_NAME}/Info.plist`;
-              buildSettings.INFOPLIST_KEY_CFBundleDisplayName = 'Stack Tracker';
-              buildSettings.INFOPLIST_KEY_NSHumanReadableCopyright = '';
-              buildSettings.LD_RUNPATH_SEARCH_PATHS = '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
-              buildSettings.PRODUCT_NAME = '"$(TARGET_NAME)"';
-              buildSettings.SKIP_INSTALL = 'YES';
-              buildSettings.SWIFT_EMIT_LOC_STRINGS = 'YES';
-              // Code signing settings - required for EAS builds
-              buildSettings.DEVELOPMENT_TEAM = APPLE_TEAM_ID;
-              buildSettings.CODE_SIGN_STYLE = 'Automatic';
+            // Get the build configuration list
+            const configLists = xcodeProject.hash.project.objects['XCConfigurationList'];
+            const configList = configLists[buildConfigListId];
+
+            if (configList && configList.buildConfigurations) {
+              // Update each build configuration
+              for (const configRef of configList.buildConfigurations) {
+                const configId = configRef.value;
+                const config = configurations[configId];
+
+                if (config && config.buildSettings) {
+                  const buildSettings = config.buildSettings;
+
+                  // Set all required build settings
+                  buildSettings.SWIFT_VERSION = '5.0';
+                  buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '17.0';
+                  buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
+                  buildSettings.CODE_SIGN_ENTITLEMENTS = `${WIDGET_NAME}/${WIDGET_NAME}.entitlements`;
+                  buildSettings.ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = 'WidgetBackground';
+                  buildSettings.ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = 'AccentColor';
+                  buildSettings.GENERATE_INFOPLIST_FILE = 'YES';
+                  buildSettings.MARKETING_VERSION = '1.0';
+                  buildSettings.CURRENT_PROJECT_VERSION = '1';
+                  buildSettings.INFOPLIST_FILE = `${WIDGET_NAME}/Info.plist`;
+                  buildSettings.INFOPLIST_KEY_CFBundleDisplayName = 'Stack Tracker';
+                  buildSettings.INFOPLIST_KEY_NSHumanReadableCopyright = '';
+                  buildSettings.LD_RUNPATH_SEARCH_PATHS = '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
+                  buildSettings.PRODUCT_NAME = '"$(TARGET_NAME)"';
+                  buildSettings.SKIP_INSTALL = 'YES';
+                  buildSettings.SWIFT_EMIT_LOC_STRINGS = 'YES';
+                  buildSettings.PRODUCT_BUNDLE_IDENTIFIER = widgetBundleId;
+
+                  // Code signing settings - CRITICAL for EAS builds
+                  buildSettings.DEVELOPMENT_TEAM = APPLE_TEAM_ID;
+                  buildSettings.CODE_SIGN_STYLE = 'Automatic';
+
+                  console.log(`Configured build settings for ${config.name || 'widget'} configuration`);
+                }
+              }
             }
+            break;
           }
         }
       }
