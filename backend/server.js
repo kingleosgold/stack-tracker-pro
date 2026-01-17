@@ -12,6 +12,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const sizeOf = require('image-size');
+const axios = require('axios');
 
 const app = express();
 
@@ -786,6 +787,68 @@ function getResetDate(periodStart) {
 }
 
 /**
+ * Test Gemini API connection
+ * GET /api/test-gemini
+ */
+app.get('/api/test-gemini', async (req, res) => {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+
+  if (!geminiApiKey) {
+    return res.json({
+      success: false,
+      error: 'GEMINI_API_KEY not configured in environment variables',
+      configured: false
+    });
+  }
+
+  try {
+    console.log('🧪 Testing Gemini API connection...');
+
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+      {
+        contents: [{
+          parts: [{ text: 'Say "Gemini is working!" in exactly those words.' }]
+        }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 50,
+        }
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000
+      }
+    );
+
+    const responseText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    console.log('✅ Gemini test successful:', responseText);
+
+    res.json({
+      success: true,
+      configured: true,
+      apiKeyPrefix: geminiApiKey.substring(0, 8) + '...',
+      response: responseText,
+      model: 'gemini-1.5-flash'
+    });
+
+  } catch (error) {
+    console.error('❌ Gemini test failed:', error.message);
+
+    res.json({
+      success: false,
+      configured: true,
+      apiKeyPrefix: geminiApiKey.substring(0, 8) + '...',
+      error: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      responseData: error.response?.data
+    });
+  }
+});
+
+/**
  * Get scan status for a user
  * GET /api/scan-status?rcUserId={revenueCatUserId}
  */
@@ -963,9 +1026,11 @@ If a field is unreadable, use null. Metal must be: gold, silver, platinum, or pa
 
     // Try Gemini 1.5 Flash first (faster and cheaper)
     const geminiApiKey = process.env.GEMINI_API_KEY;
+    console.log(`\n🔑 GEMINI_API_KEY configured: ${geminiApiKey ? 'YES (' + geminiApiKey.substring(0, 8) + '...)' : 'NO'}`);
+
     if (geminiApiKey) {
       try {
-        console.log('\n🤖 Calling Gemini 1.5 Flash API...');
+        console.log('🤖 Calling Gemini 1.5 Flash API...');
 
         const geminiResponse = await axios.post(
           `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
@@ -1000,7 +1065,17 @@ If a field is unreadable, use null. Metal must be: gold, silver, platinum, or pa
           throw new Error('Invalid Gemini response structure');
         }
       } catch (geminiError) {
-        console.log(`⚠️ Gemini failed: ${geminiError.message}, falling back to Claude...`);
+        console.log('⚠️ Gemini API Error Details:');
+        console.log(`   Message: ${geminiError.message}`);
+        if (geminiError.response) {
+          console.log(`   Status: ${geminiError.response.status}`);
+          console.log(`   Status Text: ${geminiError.response.statusText}`);
+          console.log(`   Response Data:`, JSON.stringify(geminiError.response.data, null, 2));
+        }
+        if (geminiError.code) {
+          console.log(`   Error Code: ${geminiError.code}`);
+        }
+        console.log('   Falling back to Claude...');
       }
     }
 
