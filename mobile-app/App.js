@@ -2929,7 +2929,7 @@ function AppContent() {
                       activeOpacity={0.7}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.itemTitle}>{item.productName}</Text>
+                        <Text style={[styles.itemTitle, { color: colors.text }]}>{item.productName}</Text>
                         {item.datePurchased && (
                           <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
                         )}
@@ -2974,7 +2974,7 @@ function AppContent() {
                           activeOpacity={0.7}
                         >
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.itemTitle}>{item.productName}</Text>
+                            <Text style={[styles.itemTitle, { color: colors.text }]}>{item.productName}</Text>
                             {item.datePurchased && (
                               <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
                             )}
@@ -3012,7 +3012,7 @@ function AppContent() {
                           activeOpacity={0.7}
                         >
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.itemTitle}>{item.productName}</Text>
+                            <Text style={[styles.itemTitle, { color: colors.text }]}>{item.productName}</Text>
                             {item.datePurchased && (
                               <Text style={[styles.itemSubtitle, { fontSize: 11, marginBottom: 2 }]}>📅 {item.datePurchased}</Text>
                             )}
