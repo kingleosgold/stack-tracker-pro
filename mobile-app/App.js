@@ -4898,15 +4898,16 @@ function AppContent() {
         </View>
 
         {scannedItems.map((item, index) => {
-          const itemColor = item.metal === 'silver' ? colors.silver : colors.gold;
+          const itemMetal = item.metal || 'silver';
+          const itemColor = itemMetal === 'silver' ? colors.silver : colors.gold;
 
           return (
             <View key={index} style={[styles.card, { marginBottom: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: itemColor }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{item.productName}</Text>
+                  <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{item.productName || 'Unknown Item'}</Text>
                   <Text style={{ color: itemColor, fontSize: 12, marginTop: 2 }}>
-                    {item.metal.toUpperCase()} • {item.ozt} oz{item.quantity > 1 ? ` • Qty: ${item.quantity}` : ''}
+                    {itemMetal.toUpperCase()} • {item.ozt ?? 0} oz{(item.quantity ?? 1) > 1 ? ` • Qty: ${item.quantity}` : ''}
                   </Text>
                 </View>
               </View>
@@ -4919,7 +4920,7 @@ function AppContent() {
                     <Text style={{ color: colors.text, fontSize: 14 }}>$</Text>
                     <TextInput
                       style={{ flex: 1, color: colors.text, fontSize: 14, paddingVertical: 8 }}
-                      value={item.unitPrice.toFixed(2)}
+                      value={(item.unitPrice ?? 0).toFixed(2)}
                       keyboardType="decimal-pad"
                       onChangeText={(value) => updateScannedItemPrice(index, 'unitPrice', value)}
                       selectTextOnFocus
@@ -4927,12 +4928,12 @@ function AppContent() {
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.muted, fontSize: 10, marginBottom: 4 }}>Line Total{item.quantity > 1 ? ` (×${item.quantity})` : ''}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 10, marginBottom: 4 }}>Line Total{(item.quantity ?? 1) > 1 ? ` (×${item.quantity})` : ''}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardBg, borderRadius: 6, paddingHorizontal: 8 }}>
                     <Text style={{ color: colors.text, fontSize: 14 }}>$</Text>
                     <TextInput
                       style={{ flex: 1, color: colors.text, fontSize: 14, paddingVertical: 8 }}
-                      value={item.extPrice.toFixed(2)}
+                      value={(item.extPrice ?? 0).toFixed(2)}
                       keyboardType="decimal-pad"
                       onChangeText={(value) => updateScannedItemPrice(index, 'extPrice', value)}
                       selectTextOnFocus
@@ -4941,14 +4942,14 @@ function AppContent() {
                 </View>
               </View>
 
-              {item.spotPrice > 0 && (
+              {(item.spotPrice ?? 0) > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Spot: ${item.spotPrice.toFixed(2)}
+                    Spot: ${(item.spotPrice ?? 0).toFixed(2)}
                   </Text>
-                  {item.premium !== 0 && (
-                    <Text style={{ color: item.premium > 0 ? colors.gold : colors.error, fontSize: 11 }}>
-                      Premium: ${item.premium.toFixed(2)}
+                  {(item.premium ?? 0) !== 0 && (
+                    <Text style={{ color: (item.premium ?? 0) > 0 ? colors.gold : colors.error, fontSize: 11 }}>
+                      Premium: ${(item.premium ?? 0).toFixed(2)}
                     </Text>
                   )}
                 </View>
