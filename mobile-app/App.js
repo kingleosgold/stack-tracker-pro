@@ -608,9 +608,10 @@ function AppContent() {
   // Sort State
   const [sortBy, setSortBy] = useState('date-newest'); // date-newest, date-oldest, value-high, value-low, metal, name
 
-  // Daily Snapshot State
-  const [midnightValue, setMidnightValue] = useState(null);
-  const [midnightDate, setMidnightDate] = useState(null);
+  // Daily Snapshot State - stores oz counts and spot prices at midnight
+  // This allows recalculating baseline when items are added/removed
+  const [midnightSnapshot, setMidnightSnapshot] = useState(null);
+  // Format: { silverOzt, goldOzt, silverSpot, goldSpot, date, timestamp }
 
   // Entitlements
   const [hasGold, setHasGold] = useState(false);
@@ -855,18 +856,22 @@ function AppContent() {
   const avgSilverCostPerOz = totalSilverOzt > 0 ? (silverCostBasis / totalSilverOzt) : 0;
   const avgGoldCostPerOz = totalGoldOzt > 0 ? (goldCostBasis / totalGoldOzt) : 0;
 
-  // Daily change calculation (updates with spot price changes)
-  const dailyChange = midnightValue !== null ? (totalMeltValue - midnightValue) : 0;
-  const dailyChangePct = (midnightValue !== null && midnightValue > 0) ? ((dailyChange / midnightValue) * 100) : 0;
+  // Daily change calculation - recalculates baseline using CURRENT oz counts × MIDNIGHT spot prices
+  // This ensures adding/removing items doesn't affect Today's Change (only price movement does)
+  const midnightBaseline = midnightSnapshot
+    ? (totalSilverOzt * midnightSnapshot.silverSpot) + (totalGoldOzt * midnightSnapshot.goldSpot)
+    : null;
+  const dailyChange = midnightBaseline !== null ? (totalMeltValue - midnightBaseline) : 0;
+  const dailyChangePct = (midnightBaseline !== null && midnightBaseline > 0) ? ((dailyChange / midnightBaseline) * 100) : 0;
   const isDailyChangePositive = dailyChange >= 0;
 
   // Show daily change only if:
-  // 1. We have a midnight value
-  // 2. The midnight date is today
+  // 1. We have a midnight snapshot
+  // 2. The snapshot date is today
   // 3. We have live prices (not stale defaults)
-  const isTodaySnapshot = midnightDate === new Date().toDateString();
-  const showDailyChange = midnightValue !== null
-    && midnightValue > 0
+  const isTodaySnapshot = midnightSnapshot?.date === new Date().toDateString();
+  const showDailyChange = midnightSnapshot !== null
+    && midnightBaseline > 0
     && isTodaySnapshot
     && spotPricesLive;
 
@@ -959,15 +964,14 @@ function AppContent() {
 
   const loadData = async () => {
     try {
-      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedMidnightValue, storedMidnightDate, storedTheme] = await Promise.all([
+      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedMidnightSnapshot, storedTheme] = await Promise.all([
         AsyncStorage.getItem('stack_silver'),
         AsyncStorage.getItem('stack_gold'),
         AsyncStorage.getItem('stack_silver_spot'),
         AsyncStorage.getItem('stack_gold_spot'),
         AsyncStorage.getItem('stack_price_timestamp'),
         AsyncStorage.getItem('stack_has_seen_tutorial'),
-        AsyncStorage.getItem('stack_midnight_value'),
-        AsyncStorage.getItem('stack_midnight_date'),
+        AsyncStorage.getItem('stack_midnight_snapshot'),
         AsyncStorage.getItem('stack_theme_preference'),
       ]);
 
@@ -981,8 +985,13 @@ function AppContent() {
       if (silverS) setSilverSpot(parseFloat(silverS) || 30);
       if (goldS) setGoldSpot(parseFloat(goldS) || 2600);
       if (timestamp) setPriceTimestamp(timestamp);
-      if (storedMidnightValue) setMidnightValue(parseFloat(storedMidnightValue) || 0);
-      if (storedMidnightDate) setMidnightDate(storedMidnightDate);
+      if (storedMidnightSnapshot) {
+        try {
+          setMidnightSnapshot(JSON.parse(storedMidnightSnapshot));
+        } catch (e) {
+          console.error('Failed to parse midnight snapshot');
+        }
+      }
       if (storedTheme && ['system', 'light', 'dark'].includes(storedTheme)) {
         setThemePreference(storedTheme);
       }
@@ -1276,7 +1285,8 @@ function AppContent() {
     }
   }, [revenueCatUserId, hasGold, hasLifetimeAccess]);
 
-  // Daily Snapshot: Check if it's a new day and update midnight value
+  // Daily Snapshot: Check if it's a new day and update midnight snapshot
+  // Stores oz counts and spot prices so we can recalculate baseline when items change
   useEffect(() => {
     const checkAndUpdateMidnightSnapshot = async () => {
       // IMPORTANT: Wait until data is loaded AND we have live spot prices from API
@@ -1299,26 +1309,28 @@ function AppContent() {
 
       const today = new Date().toDateString(); // e.g., "Mon Dec 29 2025"
 
-      // If no midnight date or it's a new day
-      if (!midnightDate || midnightDate !== today) {
-        // Save current portfolio value as the new midnight snapshot
-        const currentValue = totalMeltValue;
-        const snapshotTimestamp = new Date().toISOString();
+      // If no snapshot or it's a new day, create new snapshot
+      if (!midnightSnapshot || midnightSnapshot.date !== today) {
+        const snapshot = {
+          silverOzt: totalSilverOzt,
+          goldOzt: totalGoldOzt,
+          silverSpot: silverSpot,
+          goldSpot: goldSpot,
+          date: today,
+          timestamp: new Date().toISOString(),
+        };
 
-        await AsyncStorage.setItem('stack_midnight_value', currentValue.toString());
-        await AsyncStorage.setItem('stack_midnight_date', today);
-        await AsyncStorage.setItem('stack_midnight_timestamp', snapshotTimestamp);
+        await AsyncStorage.setItem('stack_midnight_snapshot', JSON.stringify(snapshot));
+        setMidnightSnapshot(snapshot);
 
-        setMidnightValue(currentValue);
-        setMidnightDate(today);
-
-        console.log(`📸 Daily snapshot updated: $${currentValue.toFixed(2)} on ${today} (prices: Au $${goldSpot}, Ag $${silverSpot})`);
+        const snapshotValue = (totalSilverOzt * silverSpot) + (totalGoldOzt * goldSpot);
+        console.log(`📸 Daily snapshot: ${totalSilverOzt.toFixed(2)}oz Ag @ $${silverSpot}, ${totalGoldOzt.toFixed(3)}oz Au @ $${goldSpot} = $${snapshotValue.toFixed(2)}`);
       }
     };
 
-    // Check on app open and when portfolio value changes
+    // Check on app open and when prices are loaded
     checkAndUpdateMidnightSnapshot();
-  }, [isAuthenticated, dataLoaded, spotPricesLive, totalMeltValue, midnightDate, silverItems.length, goldItems.length, goldSpot, silverSpot]);
+  }, [isAuthenticated, dataLoaded, spotPricesLive, midnightSnapshot, totalSilverOzt, totalGoldOzt, silverSpot, goldSpot, totalMeltValue, silverItems.length, goldItems.length]);
 
   // Auto-refresh spot prices every 1 minute (when app is active)
   useEffect(() => {
@@ -2736,7 +2748,7 @@ function AppContent() {
                     {isDailyChangePositive ? '▲' : '▼'} {isDailyChangePositive ? '+' : ''}{dailyChangePct.toFixed(2)}%
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8 }}>
-                    Since midnight (${midnightValue.toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                    Baseline: ${midnightBaseline.toLocaleString(undefined, { minimumFractionDigits: 2 })} (@ Ag ${midnightSnapshot?.silverSpot}, Au ${midnightSnapshot?.goldSpot})
                   </Text>
                 </>
               ) : (
@@ -2744,7 +2756,7 @@ function AppContent() {
                   <Text style={{ color: colors.muted, fontSize: 24, textAlign: 'center' }}>—</Text>
                   <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
                     {!spotPricesLive ? 'Waiting for live prices...' :
-                     !midnightValue ? 'No baseline yet. Check back tomorrow!' :
+                     !midnightSnapshot ? 'No baseline yet. Check back tomorrow!' :
                      'No data yet'}
                   </Text>
                 </View>
