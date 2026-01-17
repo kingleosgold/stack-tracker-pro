@@ -25,7 +25,7 @@ import * as Notifications from 'expo-notifications';
 import { CloudStorage, CloudStorageScope } from 'react-native-cloud-storage';
 import { initializePurchases, hasGoldEntitlement, getUserEntitlements } from './src/utils/entitlements';
 import { syncWidgetData, isWidgetKitAvailable } from './src/utils/widgetKit';
-import { LineChart, PieChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-chart-kit';
 import GoldPaywall from './src/components/GoldPaywall';
 import Tutorial from './src/components/Tutorial';
 
@@ -3578,51 +3578,16 @@ function AppContent() {
                 <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                   <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Holdings Breakdown</Text>
                   {totalMeltValue > 0 ? (
-                    <>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                        <PieChart
-                          data={[
-                            {
-                              name: 'Gold',
-                              value: totalGoldOzt * goldSpot,
-                              color: colors.gold,
-                              legendFontColor: colors.text,
-                              legendFontSize: 12,
-                            },
-                            {
-                              name: 'Silver',
-                              value: totalSilverOzt * silverSpot,
-                              color: colors.silver,
-                              legendFontColor: colors.text,
-                              legendFontSize: 12,
-                            },
-                          ]}
-                          width={SCREEN_WIDTH - 48}
-                          height={160}
-                          chartConfig={{
-                            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                          }}
-                          accessor="value"
-                          backgroundColor="transparent"
-                          paddingLeft="15"
-                          absolute
-                        />
-                      </View>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <View style={{ alignItems: 'center', flex: 1 }}>
-                          <Text style={{ color: colors.gold, fontSize: 18, fontWeight: '600' }}>
-                            {((totalGoldOzt * goldSpot) / totalMeltValue * 100).toFixed(1)}%
-                          </Text>
-                          <Text style={{ color: colors.muted, fontSize: 12 }}>Gold</Text>
-                        </View>
-                        <View style={{ alignItems: 'center', flex: 1 }}>
-                          <Text style={{ color: colors.silver, fontSize: 18, fontWeight: '600' }}>
-                            {((totalSilverOzt * silverSpot) / totalMeltValue * 100).toFixed(1)}%
-                          </Text>
-                          <Text style={{ color: colors.muted, fontSize: 12 }}>Silver</Text>
-                        </View>
-                      </View>
-                    </>
+                    <PieChart
+                      data={[
+                        { label: 'Gold', value: totalGoldOzt * goldSpot, color: colors.gold },
+                        { label: 'Silver', value: totalSilverOzt * silverSpot, color: colors.silver },
+                      ]}
+                      size={160}
+                      cardBgColor={colors.cardBg}
+                      textColor={colors.text}
+                      mutedColor={colors.muted}
+                    />
                   ) : (
                     <View style={{ alignItems: 'center', paddingVertical: 20 }}>
                       <Text style={{ color: colors.muted }}>Add holdings to see breakdown</Text>
