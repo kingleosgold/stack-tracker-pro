@@ -247,65 +247,115 @@ const withXcodeProjectMod = (config) => {
       );
 
       if (target) {
-        console.log('Added widget target to Xcode project');
+        console.log(`[Widget] Added widget target to Xcode project (uuid: ${target.uuid})`);
 
-        // CRITICAL: Configure build settings FIRST before any file operations
-        // This ensures DEVELOPMENT_TEAM is set even if file operations fail
+        // CRITICAL: Configure build settings using the target's buildConfigurationList directly
+        // This must happen before any file operations
         try {
-          const nativeTargets = xcodeProject.hash.project.objects['PBXNativeTarget'];
           const configurations = xcodeProject.pbxXCBuildConfigurationSection();
+          console.log(`[Widget] Found ${Object.keys(configurations).length} build configurations total`);
 
-          // Find our widget target and its build configuration list
-          for (const targetKey in nativeTargets) {
-            const nativeTarget = nativeTargets[targetKey];
-            if (nativeTarget && nativeTarget.name === targetName) {
-              const buildConfigListId = nativeTarget.buildConfigurationList;
+          // Use the target's pbxNativeTarget to get buildConfigurationList
+          const nativeTarget = target.pbxNativeTarget;
+          if (nativeTarget && nativeTarget.buildConfigurationList) {
+            const buildConfigListId = nativeTarget.buildConfigurationList;
+            console.log(`[Widget] Target buildConfigurationList: ${buildConfigListId}`);
 
-              // Get the build configuration list
-              const configLists = xcodeProject.hash.project.objects['XCConfigurationList'];
-              const configList = configLists[buildConfigListId];
+            const configLists = xcodeProject.hash.project.objects['XCConfigurationList'];
+            const configList = configLists[buildConfigListId];
 
-              if (configList && configList.buildConfigurations) {
-                // Update each build configuration
-                for (const configRef of configList.buildConfigurations) {
-                  const configId = configRef.value;
-                  const buildConfig = configurations[configId];
+            if (configList && configList.buildConfigurations) {
+              console.log(`[Widget] Found ${configList.buildConfigurations.length} configurations in list`);
 
-                  if (buildConfig && buildConfig.buildSettings) {
-                    const buildSettings = buildConfig.buildSettings;
+              for (const configRef of configList.buildConfigurations) {
+                const configId = configRef.value;
+                const buildConfig = configurations[configId];
 
-                    // Code signing settings - CRITICAL for EAS builds
-                    buildSettings.DEVELOPMENT_TEAM = APPLE_TEAM_ID;
-                    buildSettings.CODE_SIGN_STYLE = 'Automatic';
-
-                    // Set all other required build settings
-                    buildSettings.SWIFT_VERSION = '5.0';
-                    buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '17.0';
-                    buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
-                    buildSettings.CODE_SIGN_ENTITLEMENTS = `${WIDGET_NAME}/${WIDGET_NAME}.entitlements`;
-                    buildSettings.ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = 'WidgetBackground';
-                    buildSettings.ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = 'AccentColor';
-                    buildSettings.GENERATE_INFOPLIST_FILE = 'YES';
-                    buildSettings.MARKETING_VERSION = '1.0';
-                    buildSettings.CURRENT_PROJECT_VERSION = '1';
-                    buildSettings.INFOPLIST_FILE = `${WIDGET_NAME}/Info.plist`;
-                    buildSettings.INFOPLIST_KEY_CFBundleDisplayName = 'Stack Tracker';
-                    buildSettings.INFOPLIST_KEY_NSHumanReadableCopyright = '';
-                    buildSettings.LD_RUNPATH_SEARCH_PATHS = '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
-                    buildSettings.PRODUCT_NAME = '"$(TARGET_NAME)"';
-                    buildSettings.SKIP_INSTALL = 'YES';
-                    buildSettings.SWIFT_EMIT_LOC_STRINGS = 'YES';
-                    buildSettings.PRODUCT_BUNDLE_IDENTIFIER = widgetBundleId;
-
-                    console.log(`Configured build settings for ${buildConfig.name || 'widget'} configuration (DEVELOPMENT_TEAM=${APPLE_TEAM_ID})`);
+                if (buildConfig) {
+                  // Initialize buildSettings if it doesn't exist
+                  if (!buildConfig.buildSettings) {
+                    buildConfig.buildSettings = {};
                   }
+                  const buildSettings = buildConfig.buildSettings;
+
+                  // Code signing settings - CRITICAL for EAS builds
+                  buildSettings.DEVELOPMENT_TEAM = APPLE_TEAM_ID;
+                  buildSettings.CODE_SIGN_STYLE = 'Automatic';
+
+                  // Set all other required build settings
+                  buildSettings.SWIFT_VERSION = '5.0';
+                  buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '17.0';
+                  buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
+                  buildSettings.CODE_SIGN_ENTITLEMENTS = `${WIDGET_NAME}/${WIDGET_NAME}.entitlements`;
+                  buildSettings.ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = 'WidgetBackground';
+                  buildSettings.ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = 'AccentColor';
+                  buildSettings.GENERATE_INFOPLIST_FILE = 'YES';
+                  buildSettings.MARKETING_VERSION = '1.0';
+                  buildSettings.CURRENT_PROJECT_VERSION = '1';
+                  buildSettings.INFOPLIST_FILE = `${WIDGET_NAME}/Info.plist`;
+                  buildSettings.INFOPLIST_KEY_CFBundleDisplayName = 'Stack Tracker';
+                  buildSettings.INFOPLIST_KEY_NSHumanReadableCopyright = '';
+                  buildSettings.LD_RUNPATH_SEARCH_PATHS = '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
+                  buildSettings.PRODUCT_NAME = '"$(TARGET_NAME)"';
+                  buildSettings.SKIP_INSTALL = 'YES';
+                  buildSettings.SWIFT_EMIT_LOC_STRINGS = 'YES';
+                  buildSettings.PRODUCT_BUNDLE_IDENTIFIER = widgetBundleId;
+
+                  console.log(`[Widget] ✓ Configured ${buildConfig.name || 'unknown'} (DEVELOPMENT_TEAM=${APPLE_TEAM_ID})`);
+                } else {
+                  console.log(`[Widget] Warning: Could not find config for id ${configId}`);
                 }
               }
-              break;
+            } else {
+              console.log('[Widget] Warning: configList or buildConfigurations not found');
+            }
+          } else {
+            // Fallback: search for the target in PBXNativeTarget section
+            console.log('[Widget] Using fallback method to find target...');
+            const nativeTargets = xcodeProject.hash.project.objects['PBXNativeTarget'];
+
+            for (const targetKey in nativeTargets) {
+              if (targetKey.endsWith('_comment')) continue; // Skip comment entries
+              const nt = nativeTargets[targetKey];
+              if (nt && typeof nt === 'object' && nt.name === targetName) {
+                console.log(`[Widget] Found target via fallback: ${targetKey}`);
+                const buildConfigListId = nt.buildConfigurationList;
+
+                const configLists = xcodeProject.hash.project.objects['XCConfigurationList'];
+                const configList = configLists[buildConfigListId];
+
+                if (configList && configList.buildConfigurations) {
+                  for (const configRef of configList.buildConfigurations) {
+                    const configId = configRef.value;
+                    const buildConfig = configurations[configId];
+
+                    if (buildConfig) {
+                      if (!buildConfig.buildSettings) {
+                        buildConfig.buildSettings = {};
+                      }
+                      buildConfig.buildSettings.DEVELOPMENT_TEAM = APPLE_TEAM_ID;
+                      buildConfig.buildSettings.CODE_SIGN_STYLE = 'Automatic';
+                      buildConfig.buildSettings.SWIFT_VERSION = '5.0';
+                      buildConfig.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '17.0';
+                      buildConfig.buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
+                      buildConfig.buildSettings.CODE_SIGN_ENTITLEMENTS = `${WIDGET_NAME}/${WIDGET_NAME}.entitlements`;
+                      buildConfig.buildSettings.PRODUCT_BUNDLE_IDENTIFIER = widgetBundleId;
+                      buildConfig.buildSettings.INFOPLIST_FILE = `${WIDGET_NAME}/Info.plist`;
+                      buildConfig.buildSettings.PRODUCT_NAME = '"$(TARGET_NAME)"';
+                      buildConfig.buildSettings.SKIP_INSTALL = 'YES';
+                      buildConfig.buildSettings.LD_RUNPATH_SEARCH_PATHS = '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
+
+                      console.log(`[Widget] ✓ Configured via fallback: ${buildConfig.name || 'unknown'} (DEVELOPMENT_TEAM=${APPLE_TEAM_ID})`);
+                    }
+                  }
+                }
+                break;
+              }
             }
           }
         } catch (buildSettingsError) {
-          console.log('Error configuring build settings:', buildSettingsError.message);
+          console.log('[Widget] Error configuring build settings:', buildSettingsError.message);
+          console.log('[Widget] Error stack:', buildSettingsError.stack);
         }
 
         // Now try to add files (non-critical, widget extension files are copied by withWidgetExtension)
@@ -321,7 +371,7 @@ const withXcodeProjectMod = (config) => {
               groups[mainGroupId].children.push({ value: widgetGroupKey, comment: WIDGET_NAME });
             }
           } catch (groupError) {
-            console.log('Could not add widget to main group:', groupError.message);
+            console.log('[Widget] Could not add to main group:', groupError.message);
           }
 
           // Add source files to widget target
@@ -336,7 +386,7 @@ const withXcodeProjectMod = (config) => {
             try {
               xcodeProject.addSourceFile(filePath, { target: target.uuid }, widgetGroupKey);
             } catch (fileError) {
-              console.log(`Could not add source file ${file.name}:`, fileError.message);
+              console.log(`[Widget] Could not add ${file.name}:`, fileError.message);
             }
           }
 
@@ -348,14 +398,17 @@ const withXcodeProjectMod = (config) => {
               widgetGroupKey
             );
           } catch (assetError) {
-            console.log('Could not add Assets.xcassets:', assetError.message);
+            console.log('[Widget] Could not add Assets.xcassets:', assetError.message);
           }
         } catch (fileOpsError) {
-          console.log('File operations note:', fileOpsError.message);
+          console.log('[Widget] File operations note:', fileOpsError.message);
         }
+      } else {
+        console.log('[Widget] Warning: addTarget returned falsy value');
       }
     } catch (error) {
-      console.log('Widget target creation note:', error.message);
+      console.log('[Widget] Target creation error:', error.message);
+      console.log('[Widget] Error stack:', error.stack);
     }
 
     return config;
