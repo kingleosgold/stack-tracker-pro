@@ -1925,44 +1925,59 @@ function AppContent() {
         break;
     }
 
-    // Generate dates with tiered density:
-    // - Last 30 days: every 2 days (ensures 1W/1M have enough points)
-    // - Older data: sparser sampling based on maxPoints
-    // Price cache makes fetching cheap - only uncached dates hit the API
-    const dates = [];
+    // Generate dates with tiered density to ensure enough points for each time range:
+    // - Last 7 days: every day (for 1W filter)
+    // - Days 8-30: every 3 days (for 1M filter)
+    // - Days 31-90: every 7 days (for 3M filter)
+    // - Days 91-365: every 14 days (for 6M/1Y filter)
+    // - Older than 1 year: every 30 days (for ALL filter)
+    const dates = new Set(); // Use Set to avoid duplicates
     const totalDays = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24));
 
-    // First, add recent dates with high density (last 30 days, every 2 days)
-    const recentDays = Math.min(30, totalDays);
-    for (let i = 0; i < recentDays; i += 2) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
-
-    // Then add older dates with sparser sampling if range extends beyond 30 days
-    if (totalDays > 30) {
-      const olderDays = totalDays - 30;
-      const maxOlderPoints = 20; // Limit older data points
-      const olderStep = Math.max(7, Math.ceil(olderDays / maxOlderPoints)); // At least weekly
-
-      const olderStart = new Date(startDate);
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      for (let d = new Date(olderStart); d < thirtyDaysAgo; d.setDate(d.getDate() + olderStep)) {
-        const dateStr = d.toISOString().split('T')[0];
-        if (!dates.includes(dateStr)) {
-          dates.push(dateStr);
-        }
+    // Helper to add date if within range
+    const addDate = (daysAgo) => {
+      if (daysAgo <= totalDays) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - daysAgo);
+        dates.add(d.toISOString().split('T')[0]);
       }
+    };
+
+    // Last 7 days: every day (7 points)
+    for (let i = 0; i <= 7; i++) {
+      addDate(i);
     }
 
-    // Sort dates chronologically
-    dates.sort();
-    // Always include today
+    // Days 8-30: every 3 days (~8 points)
+    for (let i = 9; i <= 30; i += 3) {
+      addDate(i);
+    }
+
+    // Days 31-90: every 7 days (~9 points)
+    for (let i = 35; i <= 90; i += 7) {
+      addDate(i);
+    }
+
+    // Days 91-365: every 14 days (~20 points)
+    for (let i = 98; i <= 365; i += 14) {
+      addDate(i);
+    }
+
+    // Older than 1 year: every 30 days
+    for (let i = 395; i <= totalDays; i += 30) {
+      addDate(i);
+    }
+
+    // Also add the start date if we have one
+    if (totalDays > 0) {
+      dates.add(startDate.toISOString().split('T')[0]);
+    }
+
+    // Convert to sorted array (today is already included via addDate(0))
+    const sortedDates = Array.from(dates).sort();
     const today = now.toISOString().split('T')[0];
-    if (!dates.includes(today)) dates.push(today);
+    console.log(`📊 Generated ${sortedDates.length} date points for historical calculation`);
+    console.log(`   First: ${sortedDates[0]}, Last: ${sortedDates[sortedDates.length - 1]}`);
 
     // Pre-cache today's prices from live spot data (avoids an API call)
     if (goldSpot > 0 && silverSpot > 0 && !historicalPriceCache.current[today]) {
@@ -1970,17 +1985,15 @@ function AppContent() {
         gold: goldSpot,
         silver: silverSpot,
       };
-      if (__DEV__) console.log(`   📦 Pre-cached today's prices from live spot: Gold $${goldSpot}, Silver $${silverSpot}`);
+      console.log(`   📦 Pre-cached today's prices from live spot: Gold $${goldSpot}, Silver $${silverSpot}`);
     }
 
     // Check how many dates we need to fetch (not in cache)
-    const uncachedDates = dates.filter(d => !historicalPriceCache.current[d]);
-    const cachedCount = dates.length - uncachedDates.length;
+    const uncachedDates = sortedDates.filter(d => !historicalPriceCache.current[d]);
+    const cachedCount = sortedDates.length - uncachedDates.length;
 
-    if (__DEV__) {
-      console.log(`📊 Calculating ${dates.length} data points for range ${range}`);
-      console.log(`   📦 ${cachedCount} cached, ${uncachedDates.length} need fetching`);
-    }
+    console.log(`📊 Calculating ${sortedDates.length} data points for range ${range}`);
+    console.log(`   📦 ${cachedCount} cached, ${uncachedDates.length} need fetching`);
 
     // Helper function to fetch with timeout
     const fetchWithTimeout = async (url, timeoutMs = 5000) => {
@@ -2032,7 +2045,7 @@ function AppContent() {
 
     // Now calculate portfolio values using cached prices
     const historicalData = [];
-    for (const date of dates) {
+    for (const date of sortedDates) {
       const cached = historicalPriceCache.current[date];
       if (!cached) continue; // Skip dates we couldn't fetch
 
