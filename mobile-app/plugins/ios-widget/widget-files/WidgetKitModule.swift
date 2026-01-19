@@ -11,14 +11,24 @@ class WidgetKitModule: NSObject {
     /// - Parameter jsonData: JSON string containing widget data
     @objc
     func setWidgetData(_ jsonData: String) {
+        print("🔧 [WidgetKitModule] setWidgetData called")
+        print("🔧 [WidgetKitModule] App Group ID: \(appGroupId)")
+        print("🔧 [WidgetKitModule] JSON Data: \(jsonData)")
+
         guard let userDefaults = UserDefaults(suiteName: appGroupId) else {
-            print("WidgetKit: Failed to access App Group")
+            print("❌ [WidgetKitModule] Failed to access App Group: \(appGroupId)")
             return
         }
 
         userDefaults.set(jsonData, forKey: "widgetData")
         userDefaults.synchronize()
-        print("WidgetKit: Widget data updated")
+
+        // Verify the data was written
+        if let savedData = userDefaults.string(forKey: "widgetData") {
+            print("✅ [WidgetKitModule] Data saved successfully. Length: \(savedData.count)")
+        } else {
+            print("❌ [WidgetKitModule] Data verification failed - could not read back")
+        }
     }
 
     /// Trigger a refresh of all widget timelines

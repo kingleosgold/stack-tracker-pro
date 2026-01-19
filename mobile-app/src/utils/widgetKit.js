@@ -9,11 +9,21 @@ import { NativeModules, Platform } from 'react-native';
 
 const { WidgetKitModule } = NativeModules;
 
+// Debug logging for native module availability
+console.log('🔧 [WidgetKit] Module check:', {
+  platform: Platform.OS,
+  moduleExists: WidgetKitModule !== null && WidgetKitModule !== undefined,
+  moduleType: typeof WidgetKitModule,
+  moduleMethods: WidgetKitModule ? Object.keys(WidgetKitModule) : 'N/A',
+});
+
 /**
  * Check if WidgetKit is available (iOS only)
  */
 export const isWidgetKitAvailable = () => {
-  return Platform.OS === 'ios' && WidgetKitModule !== null && WidgetKitModule !== undefined;
+  const available = Platform.OS === 'ios' && WidgetKitModule !== null && WidgetKitModule !== undefined;
+  console.log('🔧 [WidgetKit] isWidgetKitAvailable:', available);
+  return available;
 };
 
 /**
@@ -28,8 +38,13 @@ export const isWidgetKitAvailable = () => {
  * @param {boolean} data.hasSubscription Whether user has Gold/Lifetime access
  */
 export const updateWidgetData = async (data) => {
+  console.log('🔧 [WidgetKit] updateWidgetData called with:', {
+    hasSubscription: data.hasSubscription,
+    portfolioValue: data.portfolioValue,
+  });
+
   if (!isWidgetKitAvailable()) {
-    console.log('WidgetKit not available (Android or module missing)');
+    console.log('❌ [WidgetKit] Module not available - widget data NOT synced');
     return false;
   }
 
@@ -46,12 +61,14 @@ export const updateWidgetData = async (data) => {
 
     // Serialize to JSON and send to native module
     const jsonData = JSON.stringify(widgetData);
+
+    console.log('🔧 [WidgetKit] Sending to native module:', jsonData);
     WidgetKitModule.setWidgetData(jsonData);
 
-    console.log('Widget data updated:', widgetData);
+    console.log('✅ [WidgetKit] Widget data sent to native module');
     return true;
   } catch (error) {
-    console.error('Failed to update widget data:', error);
+    console.error('❌ [WidgetKit] Failed to update widget data:', error);
     return false;
   }
 };

@@ -24,60 +24,56 @@ struct SmallWidgetView: View {
     let data: WidgetData
 
     var body: some View {
-        ZStack {
-            // Background
-            Color(hex: "#1a1a2e")
-
-            VStack(alignment: .leading, spacing: 6) {
-                // Header
-                HStack {
-                    Text("Stack Tracker")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(hex: "#fbbf24"))
-                    Spacer()
-                }
-
+        VStack(alignment: .leading, spacing: 6) {
+            // Header
+            HStack {
+                Text("Stack Tracker")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#fbbf24"))
                 Spacer()
-
-                // Portfolio Value
-                if data.hasSubscription {
-                    Text(formatCurrency(data.portfolioValue))
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-
-                    // Daily Change
-                    HStack(spacing: 4) {
-                        Text(formatChange(data.dailyChangeAmount))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(changeColor)
-
-                        Text("(\(formatPercent(data.dailyChangePercent)))")
-                            .font(.system(size: 11))
-                            .foregroundColor(changeColor)
-                    }
-                } else {
-                    // Not subscribed message
-                    VStack(spacing: 4) {
-                        Text("Upgrade to Gold")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(hex: "#fbbf24"))
-                        Text("for widget access")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color(hex: "#71717a"))
-                    }
-                }
-
-                Spacer()
-
-                // Last Updated
-                Text(timeAgoString)
-                    .font(.system(size: 9))
-                    .foregroundColor(Color(hex: "#71717a"))
             }
-            .padding(12)
+
+            Spacer()
+
+            // Portfolio Value
+            if data.hasSubscription {
+                Text(formatCurrency(data.portfolioValue))
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+
+                // Daily Change
+                HStack(spacing: 4) {
+                    Text(formatChange(data.dailyChangeAmount))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(changeColor)
+
+                    Text("(\(formatPercent(data.dailyChangePercent)))")
+                        .font(.system(size: 11))
+                        .foregroundColor(changeColor)
+                }
+            } else {
+                // Not subscribed message
+                VStack(spacing: 4) {
+                    Text("Upgrade to Gold")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(hex: "#fbbf24"))
+                    Text("for widget access")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "#71717a"))
+                }
+            }
+
+            Spacer()
+
+            // Last Updated
+            Text(timeAgoString)
+                .font(.system(size: 9))
+                .foregroundColor(Color(hex: "#71717a"))
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(for: .widget) {
             Color(hex: "#1a1a2e")
         }
@@ -110,10 +106,7 @@ struct MediumWidgetView: View {
     let data: WidgetData
 
     var body: some View {
-        ZStack {
-            // Background
-            Color(hex: "#1a1a2e")
-
+        Group {
             if data.hasSubscription {
                 VStack(alignment: .leading, spacing: 8) {
                     // Header
@@ -191,7 +184,7 @@ struct MediumWidgetView: View {
                             .foregroundColor(Color(hex: "#71717a"))
                     }
                 }
-                .padding(14)
+                .padding(16)
             } else {
                 // Not subscribed
                 VStack(spacing: 8) {
@@ -208,6 +201,7 @@ struct MediumWidgetView: View {
                 .padding()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(for: .widget) {
             Color(hex: "#1a1a2e")
         }

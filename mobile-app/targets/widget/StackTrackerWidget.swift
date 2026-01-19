@@ -60,18 +60,35 @@ struct Provider: TimelineProvider {
     private func loadWidgetData() -> WidgetData {
         let appGroupId = "group.com.stacktrackerpro.shared"
 
-        guard let userDefaults = UserDefaults(suiteName: appGroupId),
-              let jsonString = userDefaults.string(forKey: "widgetData"),
-              let jsonData = jsonString.data(using: .utf8) else {
+        print("🔧 [Widget] loadWidgetData called")
+        print("🔧 [Widget] App Group ID: \(appGroupId)")
+
+        guard let userDefaults = UserDefaults(suiteName: appGroupId) else {
+            print("❌ [Widget] Failed to access App Group")
+            return WidgetData.placeholder
+        }
+
+        guard let jsonString = userDefaults.string(forKey: "widgetData") else {
+            print("❌ [Widget] No data found for key 'widgetData'")
+            print("🔧 [Widget] Available keys: \(userDefaults.dictionaryRepresentation().keys)")
+            return WidgetData.placeholder
+        }
+
+        print("🔧 [Widget] Raw JSON: \(jsonString)")
+
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            print("❌ [Widget] Failed to convert JSON string to data")
             return WidgetData.placeholder
         }
 
         do {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(WidgetData.self, from: jsonData)
+            let data = try decoder.decode(WidgetData.self, from: jsonData)
+            print("✅ [Widget] Decoded data - hasSubscription: \(data.hasSubscription), portfolioValue: \(data.portfolioValue)")
+            return data
         } catch {
-            print("Widget: Failed to decode data: \(error)")
+            print("❌ [Widget] Failed to decode data: \(error)")
             return WidgetData.placeholder
         }
     }

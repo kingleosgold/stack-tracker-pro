@@ -9,7 +9,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   Alert, Modal, Platform, SafeAreaView, StatusBar, ActivityIndicator,
   Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Dimensions, AppState, FlatList, Clipboard, Linking,
-  useColorScheme,
+  useColorScheme, RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -48,6 +48,21 @@ const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'https://stack-track
 // DEALER CSV TEMPLATES
 // ============================================
 const DEALER_TEMPLATES = {
+  'generic': {
+    name: 'Generic / Custom',
+    instructions: 'CSV should have columns: Product Name, Metal Type, OZT, Quantity, Price, Date',
+    columnMap: {
+      product: ['product', 'name', 'item', 'description'],
+      metal: ['metal', 'type', 'metal type'],
+      quantity: ['quantity', 'qty', 'count'],
+      unitPrice: ['price', 'unit price', 'cost', 'unit cost'],
+      date: ['date', 'purchased', 'purchase date', 'order date'],
+      dealer: ['dealer', 'source', 'vendor', 'seller'],
+      ozt: ['oz', 'ozt', 'ounces', 'troy oz', 'weight'],
+    },
+    detectPattern: null, // Default fallback
+    autoDealer: null,
+  },
   'apmex': {
     name: 'APMEX',
     instructions: 'Go to My Account → Order History → Export to CSV',
@@ -138,21 +153,6 @@ const DEALER_TEMPLATES = {
     },
     detectPattern: /money.*metals/i,
     autoDealer: 'Money Metals Exchange',
-  },
-  'generic': {
-    name: 'Generic / Custom',
-    instructions: 'CSV should have columns: Product Name, Metal Type, OZT, Quantity, Price, Date',
-    columnMap: {
-      product: ['product', 'name', 'item', 'description'],
-      metal: ['metal', 'type', 'metal type'],
-      quantity: ['quantity', 'qty', 'count'],
-      unitPrice: ['price', 'unit price', 'cost', 'unit cost'],
-      date: ['date', 'purchased', 'purchase date', 'order date'],
-      dealer: ['dealer', 'source', 'vendor', 'seller'],
-      ozt: ['oz', 'ozt', 'ounces', 'troy oz', 'weight'],
-    },
-    detectPattern: null, // Default fallback
-    autoDealer: null,
   },
 };
 
@@ -581,6 +581,7 @@ function AppContent() {
   // Core State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [tab, setTab] = useState('dashboard');
   const [metalTab, setMetalTab] = useState('both'); // Changed from 'silver' to 'both'
 
@@ -590,6 +591,13 @@ function AppContent() {
   const [priceSource, setPriceSource] = useState('cached');
   const [priceTimestamp, setPriceTimestamp] = useState(null);
   const [spotPricesLive, setSpotPricesLive] = useState(false); // True after successful API fetch
+
+  // Spot Price Daily Change
+  const [spotChange, setSpotChange] = useState({
+    gold: { amount: null, percent: null },
+    silver: { amount: null, percent: null },
+  });
+  const [spotChangeDisplayMode, setSpotChangeDisplayMode] = useState('percent'); // 'percent' or 'amount'
 
   // Portfolio Data
   const [silverItems, setSilverItems] = useState([]);
@@ -994,7 +1002,7 @@ function AppContent() {
 
   const loadData = async () => {
     try {
-      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedMidnightSnapshot, storedTheme] = await Promise.all([
+      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedMidnightSnapshot, storedTheme, storedChangeDisplayMode] = await Promise.all([
         AsyncStorage.getItem('stack_silver'),
         AsyncStorage.getItem('stack_gold'),
         AsyncStorage.getItem('stack_silver_spot'),
@@ -1003,6 +1011,7 @@ function AppContent() {
         AsyncStorage.getItem('stack_has_seen_tutorial'),
         AsyncStorage.getItem('stack_midnight_snapshot'),
         AsyncStorage.getItem('stack_theme_preference'),
+        AsyncStorage.getItem('stack_spot_change_display_mode'),
       ]);
 
       // Safely parse JSON data with fallbacks
@@ -1024,6 +1033,9 @@ function AppContent() {
       }
       if (storedTheme && ['system', 'light', 'dark'].includes(storedTheme)) {
         setThemePreference(storedTheme);
+      }
+      if (storedChangeDisplayMode && ['percent', 'amount'].includes(storedChangeDisplayMode)) {
+        setSpotChangeDisplayMode(storedChangeDisplayMode);
       }
 
       // Show tutorial if user hasn't seen it
@@ -1740,11 +1752,26 @@ function AppContent() {
    * Called when prices update or portfolio changes
    */
   const syncWidget = async () => {
+    // Debug logging for subscription state
+    console.log('📱 [syncWidget] Called with state:', {
+      hasGold,
+      hasLifetimeAccess,
+      combinedSubscription: hasGold || hasLifetimeAccess,
+      platform: Platform.OS,
+      widgetKitAvailable: isWidgetKitAvailable(),
+    });
+
     // Only sync for Gold/Lifetime subscribers
-    if (!hasGold && !hasLifetimeAccess) return;
+    if (!hasGold && !hasLifetimeAccess) {
+      console.log('📱 [syncWidget] Skipping - no subscription');
+      return;
+    }
 
     // Only sync on iOS with WidgetKit available
-    if (Platform.OS !== 'ios' || !isWidgetKitAvailable()) return;
+    if (Platform.OS !== 'ios' || !isWidgetKitAvailable()) {
+      console.log('📱 [syncWidget] Skipping - not iOS or WidgetKit unavailable');
+      return;
+    }
 
     try {
       // Calculate daily change
@@ -1760,18 +1787,22 @@ function AppContent() {
         }
       }
 
-      await syncWidgetData({
+      const widgetPayload = {
         portfolioValue: totalMeltValue,
         dailyChangeAmount: dailyChangeAmt,
         dailyChangePercent: dailyChangePct,
         goldSpot: goldSpot,
         silverSpot: silverSpot,
         hasSubscription: hasGold || hasLifetimeAccess,
-      });
+      };
 
-      if (__DEV__) console.log('📱 Widget data synced');
+      console.log('📱 [syncWidget] Sending payload:', widgetPayload);
+
+      await syncWidgetData(widgetPayload);
+
+      console.log('✅ [syncWidget] Widget data synced successfully');
     } catch (error) {
-      if (__DEV__) console.log('Widget sync failed:', error.message);
+      console.error('❌ [syncWidget] Failed:', error.message);
     }
   };
 
@@ -1961,6 +1992,21 @@ function AppContent() {
   };
 
   // ============================================
+  // SPOT PRICE CHANGE DISPLAY TOGGLE
+  // ============================================
+
+  const toggleSpotChangeDisplayMode = async () => {
+    const newMode = spotChangeDisplayMode === 'percent' ? 'amount' : 'percent';
+    setSpotChangeDisplayMode(newMode);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await AsyncStorage.setItem('stack_spot_change_display_mode', newMode);
+    } catch (error) {
+      console.error('Failed to save spot change display mode:', error);
+    }
+  };
+
+  // ============================================
   // API CALLS
   // ============================================
 
@@ -1996,6 +2042,21 @@ function AppContent() {
         setSpotPricesLive(true); // Mark that we have live prices from API
         await AsyncStorage.setItem('stack_price_timestamp', data.timestamp || new Date().toISOString());
 
+        // Capture daily change data if available
+        if (data.change) {
+          setSpotChange({
+            gold: {
+              amount: data.change.gold?.amount ?? null,
+              percent: data.change.gold?.percent ?? null,
+            },
+            silver: {
+              amount: data.change.silver?.amount ?? null,
+              percent: data.change.silver?.percent ?? null,
+            },
+          });
+          if (__DEV__) console.log('📈 Change data:', data.change);
+        }
+
         if (__DEV__) console.log(`💰 Prices updated: Gold $${data.gold}, Silver $${data.silver} (Source: ${data.source})`);
       } else {
         if (__DEV__) console.log('⚠️  API returned success=false');
@@ -2006,6 +2067,14 @@ function AppContent() {
       if (__DEV__) console.error('   Error details:', error);
       setPriceSource('cached');
     }
+  };
+
+  // Pull-to-refresh handler for dashboard
+  const onRefreshDashboard = async () => {
+    setIsRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await fetchSpotPrices();
+    setIsRefreshing(false);
   };
 
   /**
@@ -2334,7 +2403,8 @@ function AppContent() {
         setScannedItems(processedItems);
         setScannedMetadata({ purchaseDate, dealer });
 
-        // Show success message
+        // Show success message with haptic feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setScanStatus('success');
         setScanMessage(summary);
 
@@ -3083,6 +3153,16 @@ function AppContent() {
         style={styles.content}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        refreshControl={
+          tab === 'dashboard' ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefreshDashboard}
+              tintColor={colors.gold}
+              colors={[colors.gold]}
+            />
+          ) : undefined
+        }
       >
 
         {/* DASHBOARD TAB */}
@@ -3204,28 +3284,50 @@ function AppContent() {
 
             {/* Live Spot Prices */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>💹 Live Spot Prices</Text>
-                <TouchableOpacity onPress={fetchSpotPrices}>
-                  <Text style={{ color: colors.muted }}>🔄 Refresh</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>💹 Live Spot Prices</Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1, backgroundColor: `${colors.silver}22`, padding: 16, borderRadius: 12 }}>
                   <Text style={{ color: colors.silver, fontSize: 12 }}>🥈 Silver</Text>
                   <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(silverSpot)}</Text>
+                  {spotChange.silver.percent !== null ? (
+                    <TouchableOpacity onPress={toggleSpotChangeDisplayMode} activeOpacity={0.7}>
+                      <Text style={{
+                        color: spotChange.silver.amount >= 0 ? '#22C55E' : '#EF4444',
+                        fontSize: 13,
+                        fontWeight: '600',
+                        marginTop: 4
+                      }}>
+                        {spotChangeDisplayMode === 'percent'
+                          ? `${spotChange.silver.percent >= 0 ? '+' : ''}${spotChange.silver.percent.toFixed(2)}%`
+                          : `${spotChange.silver.amount >= 0 ? '+' : ''}$${spotChange.silver.amount.toFixed(2)}`
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Change: --</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1, backgroundColor: `${colors.gold}22`, padding: 16, borderRadius: 12 }}>
                   <Text style={{ color: colors.gold, fontSize: 12 }}>🥇 Gold</Text>
                   <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(goldSpot)}</Text>
+                  {spotChange.gold.percent !== null ? (
+                    <TouchableOpacity onPress={toggleSpotChangeDisplayMode} activeOpacity={0.7}>
+                      <Text style={{
+                        color: spotChange.gold.amount >= 0 ? '#22C55E' : '#EF4444',
+                        fontSize: 13,
+                        fontWeight: '600',
+                        marginTop: 4
+                      }}>
+                        {spotChangeDisplayMode === 'percent'
+                          ? `${spotChange.gold.percent >= 0 ? '+' : ''}${spotChange.gold.percent.toFixed(2)}%`
+                          : `${spotChange.gold.amount >= 0 ? '+' : ''}$${spotChange.gold.amount.toFixed(2)}`
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Change: --</Text>
+                  )}
                 </View>
-              </View>
-
-              {/* Gold/Silver Ratio */}
-              <View style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(251, 191, 36, 0.1)', borderRadius: 8 }}>
-                <Text style={{ color: colors.muted, fontSize: 11, textAlign: 'center' }}>
-                  Gold/Silver Ratio: <Text style={{ color: colors.gold, fontWeight: '600' }}>{goldSpot > 0 && silverSpot > 0 ? (goldSpot / silverSpot).toFixed(1) : '-'}</Text>
-                </Text>
               </View>
 
               {/* Last Updated */}
@@ -3242,54 +3344,87 @@ function AppContent() {
         {/* HOLDINGS TAB */}
         {tab === 'holdings' && (
           <>
-            <View style={styles.metalTabs}>
+            {/* Segmented Control Filter */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 }}>
+              <View style={{
+                flex: 1,
+                flexDirection: 'row',
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                borderRadius: 10,
+                padding: 3,
+              }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    backgroundColor: metalTab === 'silver' ? (isDarkMode ? 'rgba(156,163,175,0.25)' : '#fff') : 'transparent',
+                  }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setMetalTab('silver');
+                  }}
+                >
+                  <Text style={{ color: metalTab === 'silver' ? colors.silver : colors.muted, fontWeight: '600', fontSize: 13 }}>🥈 Silver</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    backgroundColor: metalTab === 'gold' ? (isDarkMode ? 'rgba(251,191,36,0.2)' : '#fff') : 'transparent',
+                  }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setMetalTab('gold');
+                  }}
+                >
+                  <Text style={{ color: metalTab === 'gold' ? colors.gold : colors.muted, fontWeight: '600', fontSize: 13 }}>🥇 Gold</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    backgroundColor: metalTab === 'both' ? (isDarkMode ? 'rgba(251,191,36,0.2)' : '#fff') : 'transparent',
+                  }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setMetalTab('both');
+                  }}
+                >
+                  <Text style={{ color: metalTab === 'both' ? colors.gold : colors.muted, fontWeight: '600', fontSize: 13 }}>All</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
-                style={[styles.metalTab, { borderColor: metalTab === 'silver' ? colors.silver : colors.border, backgroundColor: metalTab === 'silver' ? `${colors.silver}22` : 'transparent' }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setMetalTab('silver');
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
-              >
-                <Text style={{ color: metalTab === 'silver' ? colors.silver : colors.muted, fontWeight: '600' }}>🥈 Silver ({silverItems.length})</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.metalTab, { borderColor: metalTab === 'gold' ? colors.gold : colors.border, backgroundColor: metalTab === 'gold' ? `${colors.gold}22` : 'transparent' }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setMetalTab('gold');
-                }}
-              >
-                <Text style={{ color: metalTab === 'gold' ? colors.gold : colors.muted, fontWeight: '600' }}>🥇 Gold ({goldItems.length})</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.metalTab, { borderColor: metalTab === 'both' ? colors.gold : colors.border, backgroundColor: metalTab === 'both' ? `${colors.gold}22` : 'transparent' }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setMetalTab('both');
-                }}
-              >
-                <Text style={{ color: metalTab === 'both' ? colors.gold : colors.muted, fontWeight: '600' }}>💰 Both ({silverItems.length + goldItems.length})</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-              <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: currentColor }]} onPress={handleAddPurchase}>
-                <Text style={{ color: '#000', fontWeight: '600' }}>+ Add Purchase</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.buttonOutline, { paddingHorizontal: 16, backgroundColor: isDarkMode ? 'transparent' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : `${colors.gold}40` }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowSortMenu(true);
                 }}
               >
-                <Text style={{ color: colors.text, fontSize: 18 }}>⬍⬍</Text>
+                <Text style={{ color: colors.muted, fontSize: 14 }}>↕️</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={[styles.buttonOutline, { marginBottom: 16, backgroundColor: isDarkMode ? 'transparent' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : `${colors.gold}40` }]} onPress={importSpreadsheet}>
-              <Text style={{ color: colors.text, fontWeight: '600' }}>📊 Import from Spreadsheet</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: colors.gold }]} onPress={handleAddPurchase}>
+                <Text style={{ color: '#000', fontWeight: '600' }}>+ Add Purchase</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.buttonOutline, { flex: 1, borderColor: colors.gold, borderWidth: 1.5 }]} onPress={importSpreadsheet}>
+                <Text style={{ color: colors.gold, fontWeight: '600' }}>📊 Import CSV</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Show filtered items or both with grouping */}
             {metalTab !== 'both' ? (
@@ -4352,9 +4487,10 @@ function AppContent() {
           { key: 'tools', icon: '🧮', label: 'Tools' },
           { key: 'settings', icon: '⚙️', label: 'Settings' },
         ].map(t => (
-          <TouchableOpacity key={t.key} style={styles.bottomTab} onPress={() => setTab(t.key)}>
-            <Text style={{ fontSize: 18 }}>{t.icon}</Text>
+          <TouchableOpacity key={t.key} style={styles.bottomTab} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(t.key); }}>
+            <Text style={{ fontSize: 18, marginBottom: 2 }}>{t.icon}</Text>
             <Text style={{ color: tab === t.key ? colors.text : colors.muted, fontSize: 9 }}>{t.label}</Text>
+            {tab === t.key && <View style={{ position: 'absolute', bottom: -4, left: 8, right: 8, height: 2, backgroundColor: colors.gold, borderRadius: 1 }} />}
           </TouchableOpacity>
         ))}
       </View>
@@ -4439,10 +4575,10 @@ function AppContent() {
                   </View>
 
                   <View style={styles.metalTabs}>
-                    <TouchableOpacity style={[styles.metalTab, { borderColor: metalTab === 'silver' ? colors.silver : colors.border, backgroundColor: metalTab === 'silver' ? `${colors.silver}22` : 'transparent' }]} onPress={() => setMetalTab('silver')}>
+                    <TouchableOpacity style={[styles.metalTab, { borderColor: metalTab === 'silver' ? colors.silver : colors.border, backgroundColor: metalTab === 'silver' ? `${colors.silver}22` : 'transparent' }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMetalTab('silver'); }}>
                       <Text style={{ color: metalTab === 'silver' ? colors.silver : colors.muted }}>🥈 Silver</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.metalTab, { borderColor: metalTab === 'gold' ? colors.gold : colors.border, backgroundColor: metalTab === 'gold' ? `${colors.gold}22` : 'transparent' }]} onPress={() => setMetalTab('gold')}>
+                    <TouchableOpacity style={[styles.metalTab, { borderColor: metalTab === 'gold' ? colors.gold : colors.border, backgroundColor: metalTab === 'gold' ? `${colors.gold}22` : 'transparent' }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMetalTab('gold'); }}>
                       <Text style={{ color: metalTab === 'gold' ? colors.gold : colors.muted }}>🥇 Gold</Text>
                     </TouchableOpacity>
                   </View>
@@ -4513,7 +4649,7 @@ function AppContent() {
 
                 {/* Sticky Save Button */}
                 <View style={[styles.stickyButtonContainer, { backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff', borderTopColor: colors.border }]}>
-                  <TouchableOpacity style={[styles.button, { backgroundColor: currentColor }]} onPress={savePurchase}>
+                  <TouchableOpacity style={[styles.button, { backgroundColor: colors.gold }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); savePurchase(); }}>
                     <Text style={{ color: '#000', fontWeight: '600' }}>{editingItem ? 'Update' : 'Add'} Purchase</Text>
                   </TouchableOpacity>
                 </View>
