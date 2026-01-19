@@ -4,7 +4,7 @@
  * "Make Stacking Great Again" Edition 🪙
  */
 
-import React, { useState, useEffect, Component } from 'react';
+import React, { useState, useEffect, useRef, Component } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   Alert, Modal, Platform, SafeAreaView, StatusBar, ActivityIndicator,
@@ -29,6 +29,7 @@ import { syncWidgetData, isWidgetKitAvailable } from './src/utils/widgetKit';
 import { LineChart } from 'react-native-chart-kit';
 import GoldPaywall from './src/components/GoldPaywall';
 import Tutorial from './src/components/Tutorial';
+import ViewShot from 'react-native-view-shot';
 
 // Configure notifications behavior
 Notifications.setNotificationHandler({
@@ -680,6 +681,11 @@ function AppContent() {
   const [analyticsSnapshots, setAnalyticsSnapshots] = useState([]);
   const [analyticsRange, setAnalyticsRange] = useState('1M');
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Share My Stack
+  const shareViewRef = useRef(null);
+  const [isGeneratingShare, setIsGeneratingShare] = useState(false);
+  const [showSharePreview, setShowSharePreview] = useState(false);
 
   // Form State
   const [form, setForm] = useState({
@@ -3300,6 +3306,42 @@ function AppContent() {
   };
 
   // ============================================
+  // SHARE MY STACK
+  // ============================================
+  const shareMyStack = async () => {
+    try {
+      if (!shareViewRef.current) {
+        Alert.alert('Error', 'Unable to generate share image');
+        return;
+      }
+
+      setIsGeneratingShare(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Brief delay to ensure view is rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Capture the view as an image
+      const uri = await shareViewRef.current.capture();
+
+      // Share the image
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: 'Share My Stack',
+        UTI: 'public.png',
+      });
+
+      setIsGeneratingShare(false);
+      setShowSharePreview(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Share My Stack error:', error);
+      setIsGeneratingShare(false);
+      Alert.alert('Share Failed', error.message || 'Could not generate share image.');
+    }
+  };
+
+  // ============================================
   // LOADING & AUTH SCREENS
   // ============================================
 
@@ -3807,37 +3849,19 @@ function AppContent() {
                     </View>
                   )}
                 </View>
-                {analyticsLoading && <ActivityIndicator size="small" color={colors.gold} />}
+                {analyticsLoading && hasGoldAccess && <ActivityIndicator size="small" color={colors.gold} />}
               </View>
-
-              {!hasGoldAccess ? (
-                <>
-                  <Text style={{ color: colors.muted, marginBottom: 12 }}>
-                    Upgrade to Gold to track your portfolio value over time with charts and detailed analytics
-                  </Text>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: colors.gold,
-                      padding: 12,
-                      borderRadius: 8,
-                      gap: 8,
-                    }}
-                    onPress={() => setShowPaywallModal(true)}
-                  >
-                    <Text style={{ color: '#000', fontWeight: '600' }}>Unlock Analytics</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={{ color: colors.muted }}>
-                  Track your portfolio performance with historical data and insights
-                </Text>
-              )}
+              <Text style={{ color: colors.muted }}>
+                {hasGoldAccess
+                  ? 'Track your portfolio performance with historical data and insights'
+                  : 'See what Gold members get access to'}
+              </Text>
             </View>
 
-            {hasGoldAccess && (
+            {/* Analytics Content - Blurred for non-Gold users */}
+            <View style={{ position: 'relative' }}>
+              {/* Content with blur effect for non-Gold */}
+              <View style={{ opacity: hasGoldAccess ? 1 : 0.25 }} pointerEvents={hasGoldAccess ? 'auto' : 'none'}>
               <>
                 {/* Time Range Selector */}
                 <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -4148,7 +4172,60 @@ function AppContent() {
                   </Text>
                 </View>
               </>
-            )}
+              </View>
+
+              {/* Upgrade Overlay for non-Gold users */}
+              {!hasGoldAccess && (
+                <View style={{
+                  position: 'absolute',
+                  top: 80,
+                  left: 0,
+                  right: 0,
+                  alignItems: 'center',
+                  zIndex: 10,
+                }}>
+                  <View style={{
+                    backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                    borderRadius: 20,
+                    padding: 24,
+                    marginHorizontal: 20,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: 'rgba(251, 191, 36, 0.3)',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 5,
+                  }}>
+                    <Text style={{ fontSize: 40, marginBottom: 12 }}>📊</Text>
+                    <Text style={{ color: colors.gold, fontSize: 18, fontWeight: '700', marginBottom: 8, textAlign: 'center' }}>
+                      Unlock Portfolio Analytics
+                    </Text>
+                    <Text style={{ color: colors.muted, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
+                      Track your portfolio value over time, analyze cost basis, see premium trends, and more
+                    </Text>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: colors.gold,
+                        paddingVertical: 14,
+                        paddingHorizontal: 32,
+                        borderRadius: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        setShowPaywallModal(true);
+                      }}
+                    >
+                      <Text style={{ color: '#000', fontWeight: '700', fontSize: 16 }}>Upgrade to Gold</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
           </>
         )}
 
@@ -4537,6 +4614,24 @@ function AppContent() {
                   <Text style={{ color: colors.text }}>📥 Restore</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* Share My Stack Section */}
+            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>📸 Share My Stack</Text>
+              <Text style={{ color: colors.muted, marginBottom: 16 }}>Create a shareable image of your portfolio summary</Text>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: colors.gold }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowSharePreview(true);
+                }}
+                disabled={silverItems.length === 0 && goldItems.length === 0}
+              >
+                <Text style={{ color: '#000', fontWeight: '600' }}>
+                  {silverItems.length === 0 && goldItems.length === 0 ? 'Add holdings first' : '🖼️ Generate Share Image'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -5683,6 +5778,126 @@ function AppContent() {
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Alphabetical by product name</Text>
         </TouchableOpacity>
       </ModalWrapper>
+
+      {/* Share My Stack Preview Modal */}
+      <Modal visible={showSharePreview} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          {/* Shareable View - Captured by ViewShot */}
+          <ViewShot
+            ref={shareViewRef}
+            options={{ format: 'png', quality: 1.0, result: 'tmpfile' }}
+            style={{ width: SCREEN_WIDTH - 40 }}
+          >
+            <View style={{
+              backgroundColor: '#1a1a2e',
+              borderRadius: 20,
+              padding: 24,
+              width: '100%',
+            }}>
+              {/* Header */}
+              <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ fontSize: 24, marginBottom: 8 }}>🪙</Text>
+                <Text style={{ color: '#fbbf24', fontSize: 18, fontWeight: '700' }}>My Precious Metals Stack</Text>
+              </View>
+
+              {/* Portfolio Value */}
+              <View style={{
+                backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                borderRadius: 16,
+                padding: 20,
+                alignItems: 'center',
+                marginBottom: 20,
+                borderWidth: 1,
+                borderColor: 'rgba(251, 191, 36, 0.2)',
+              }}>
+                <Text style={{ color: '#71717a', fontSize: 12, marginBottom: 4 }}>Total Portfolio Value</Text>
+                <Text style={{ color: '#fff', fontSize: 36, fontWeight: '700' }}>{formatCurrency(totalMeltValue, 0)}</Text>
+              </View>
+
+              {/* Gold & Silver Breakdown */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+                {/* Gold */}
+                <View style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(251, 191, 36, 0.08)',
+                  borderRadius: 12,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: 'rgba(251, 191, 36, 0.15)',
+                }}>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🥇</Text>
+                  <Text style={{ color: '#fbbf24', fontWeight: '600', marginBottom: 8 }}>Gold</Text>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{totalGoldOzt.toFixed(3)} oz</Text>
+                  <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>{formatCurrency(totalGoldOzt * goldSpot, 0)}</Text>
+                </View>
+
+                {/* Silver */}
+                <View style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(156, 163, 175, 0.08)',
+                  borderRadius: 12,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: 'rgba(156, 163, 175, 0.15)',
+                }}>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🥈</Text>
+                  <Text style={{ color: '#9ca3af', fontWeight: '600', marginBottom: 8 }}>Silver</Text>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{totalSilverOzt.toFixed(2)} oz</Text>
+                  <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>{formatCurrency(totalSilverOzt * silverSpot, 0)}</Text>
+                </View>
+              </View>
+
+              {/* Spot Prices */}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 16 }}>
+                <Text style={{ color: '#71717a', fontSize: 11 }}>Gold: ${goldSpot.toFixed(0)}/oz</Text>
+                <Text style={{ color: '#71717a', fontSize: 11 }}>Silver: ${silverSpot.toFixed(2)}/oz</Text>
+              </View>
+
+              {/* Watermark */}
+              <View style={{ alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
+                <Text style={{ color: '#52525b', fontSize: 11 }}>Tracked with Stack Tracker Pro</Text>
+              </View>
+            </View>
+          </ViewShot>
+
+          {/* Action Buttons */}
+          <View style={{ width: '100%', marginTop: 20, gap: 12 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.gold,
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+              onPress={shareMyStack}
+              disabled={isGeneratingShare}
+            >
+              {isGeneratingShare ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <>
+                  <Text style={{ color: '#000', fontWeight: '600', fontSize: 16 }}>Share</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+              }}
+              onPress={() => setShowSharePreview(false)}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* First Launch Tutorial */}
       <Tutorial
