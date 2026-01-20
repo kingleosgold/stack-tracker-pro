@@ -4206,15 +4206,6 @@ function AppContent() {
                     const chartLabels = sampledData.map(s => formatLabel(s.date));
                     const chartData = sampledData.map(s => s.total_value || 0);
 
-                    console.log('CHART SAMPLED:', {
-                      range: analyticsRange,
-                      originalPoints: analyticsSnapshots.length,
-                      sampledPoints: sampledData.length,
-                      labels: chartLabels,
-                      firstDate: sampledData[0]?.date,
-                      lastDate: sampledData[sampledData.length - 1]?.date,
-                    });
-
                     return (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                       <LineChart
