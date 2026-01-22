@@ -596,8 +596,8 @@ function AppContent() {
 
   // Spot Price Daily Change
   const [spotChange, setSpotChange] = useState({
-    gold: { amount: null, percent: null },
-    silver: { amount: null, percent: null },
+    gold: { amount: null, percent: null, prevClose: null },
+    silver: { amount: null, percent: null, prevClose: null },
   });
   const [spotChangeDisplayMode, setSpotChangeDisplayMode] = useState('percent'); // 'percent' or 'amount'
 
@@ -637,6 +637,7 @@ function AppContent() {
 
   // Entitlements
   const [hasGold, setHasGold] = useState(false);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true); // Don't show upgrade prompts until loaded
 
   // Server-side scan tracking
   const [scanUsage, setScanUsage] = useState({
@@ -1388,9 +1389,11 @@ function AppContent() {
           } else {
             console.log('⚠️ RevenueCat initialization returned false, skipping entitlements');
           }
+          setSubscriptionLoading(false); // Done checking subscription status
         } catch (error) {
           // Log but don't crash - RevenueCat is not critical for app function
           console.error('RevenueCat setup failed (non-fatal):', error?.message || error);
+          setSubscriptionLoading(false); // Done even on error
         }
       };
       setupRevenueCat();
@@ -1439,11 +1442,17 @@ function AppContent() {
 
       // If no snapshot or it's a new day, create new snapshot
       if (!midnightSnapshot || midnightSnapshot.date !== today) {
+        // Use previous day's closing prices if available (from backend change data)
+        // This ensures "Today's Change" reflects actual movement since yesterday's close
+        // Fall back to current prices only if prevClose is not available
+        const baselineSilverSpot = spotChange.silver.prevClose ?? silverSpot;
+        const baselineGoldSpot = spotChange.gold.prevClose ?? goldSpot;
+
         const snapshot = {
           silverOzt: totalSilverOzt,
           goldOzt: totalGoldOzt,
-          silverSpot: silverSpot,
-          goldSpot: goldSpot,
+          silverSpot: baselineSilverSpot,
+          goldSpot: baselineGoldSpot,
           date: today,
           timestamp: new Date().toISOString(),
         };
@@ -1451,14 +1460,15 @@ function AppContent() {
         await AsyncStorage.setItem('stack_midnight_snapshot', JSON.stringify(snapshot));
         setMidnightSnapshot(snapshot);
 
-        const snapshotValue = (totalSilverOzt * silverSpot) + (totalGoldOzt * goldSpot);
-        console.log(`📸 Daily snapshot: ${totalSilverOzt.toFixed(2)}oz Ag @ $${silverSpot}, ${totalGoldOzt.toFixed(3)}oz Au @ $${goldSpot} = $${snapshotValue.toFixed(2)}`);
+        const snapshotValue = (totalSilverOzt * baselineSilverSpot) + (totalGoldOzt * baselineGoldSpot);
+        const usingPrevClose = spotChange.silver.prevClose != null;
+        console.log(`📸 Daily snapshot: ${totalSilverOzt.toFixed(2)}oz Ag @ $${baselineSilverSpot}, ${totalGoldOzt.toFixed(3)}oz Au @ $${baselineGoldSpot} = $${snapshotValue.toFixed(2)} (${usingPrevClose ? 'prev close' : 'current'})`);
       }
     };
 
     // Check on app open and when prices are loaded
     checkAndUpdateMidnightSnapshot();
-  }, [isAuthenticated, dataLoaded, spotPricesLive, midnightSnapshot, totalSilverOzt, totalGoldOzt, silverSpot, goldSpot, totalMeltValue, silverItems.length, goldItems.length]);
+  }, [isAuthenticated, dataLoaded, spotPricesLive, midnightSnapshot, totalSilverOzt, totalGoldOzt, silverSpot, goldSpot, totalMeltValue, silverItems.length, goldItems.length, spotChange]);
 
   // Auto-refresh spot prices every 1 minute (when app is active)
   useEffect(() => {
@@ -2521,10 +2531,12 @@ function AppContent() {
             gold: {
               amount: data.change.gold?.amount ?? null,
               percent: data.change.gold?.percent ?? null,
+              prevClose: data.change.gold?.prevClose ?? null,
             },
             silver: {
               amount: data.change.silver?.amount ?? null,
               percent: data.change.silver?.percent ?? null,
+              prevClose: data.change.silver?.prevClose ?? null,
             },
           });
           if (__DEV__) console.log('📈 Change data:', data.change);
@@ -3811,7 +3823,7 @@ function AppContent() {
                 <View style={{ flex: 1, backgroundColor: `${colors.silver}22`, padding: 16, borderRadius: 12 }}>
                   <Text style={{ color: colors.silver, fontSize: 12 }}>🥈 Silver</Text>
                   <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(silverSpot)}</Text>
-                  {spotChange.silver.percent !== null ? (
+                  {spotChange.silver.percent != null && spotChange.silver.amount != null ? (
                     <TouchableOpacity onPress={toggleSpotChangeDisplayMode} activeOpacity={0.7}>
                       <Text style={{
                         color: spotChange.silver.amount >= 0 ? '#22C55E' : '#EF4444',
@@ -3832,7 +3844,7 @@ function AppContent() {
                 <View style={{ flex: 1, backgroundColor: `${colors.gold}22`, padding: 16, borderRadius: 12 }}>
                   <Text style={{ color: colors.gold, fontSize: 12 }}>🥇 Gold</Text>
                   <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(goldSpot)}</Text>
-                  {spotChange.gold.percent !== null ? (
+                  {spotChange.gold.percent != null && spotChange.gold.amount != null ? (
                     <TouchableOpacity onPress={toggleSpotChangeDisplayMode} activeOpacity={0.7}>
                       <Text style={{
                         color: spotChange.gold.amount >= 0 ? '#22C55E' : '#EF4444',
@@ -5074,8 +5086,8 @@ function AppContent() {
         <View style={{ height: (tab === 'settings' || tab === 'analytics') ? 300 : 100 }} />
       </ScrollView>
 
-      {/* Upgrade to Gold Banner */}
-      {!hasGold && !hasLifetimeAccess && !upgradeBannerDismissed && (
+      {/* Upgrade to Gold Banner - only show after subscription status is loaded */}
+      {!subscriptionLoading && !hasGold && !hasLifetimeAccess && !upgradeBannerDismissed && (
         <View style={styles.upgradeBanner}>
           <TouchableOpacity
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingLeft: 16 }}
