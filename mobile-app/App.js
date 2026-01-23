@@ -4957,596 +4957,659 @@ function AppContent() {
         )}
 
         {/* SETTINGS TAB */}
-        {tab === 'settings' && (
-          <>
-            {/* iCloud Sync Section - iOS only */}
-            {Platform.OS === 'ios' && (
-              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>☁️ iCloud Sync</Text>
-                    {!hasGoldAccess && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
-                        <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny, fontWeight: '600' }}>🔒 GOLD</Text>
-                      </View>
-                    )}
-                  </View>
-                  {iCloudSyncing && hasGoldAccess && <ActivityIndicator size="small" color={colors.gold} />}
-                </View>
+        {tab === 'settings' && (() => {
+          // iOS Settings style colors
+          const settingsBg = isDarkMode ? '#000000' : '#f2f2f7';
+          const groupBg = isDarkMode ? '#1c1c1e' : '#ffffff';
+          const separatorColor = isDarkMode ? '#38383a' : '#c6c6c8';
+          const chevronColor = isDarkMode ? '#48484a' : '#c7c7cc';
 
-                {!hasGoldAccess ? (
-                  <>
-                    <Text style={{ color: colors.muted, marginBottom: 12, fontSize: scaledFonts.normal }}>
-                      Upgrade to Gold to sync your portfolio across all your Apple devices
-                    </Text>
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: colors.gold,
-                        padding: 12,
-                        borderRadius: 8,
-                        gap: 8,
-                      }}
-                      onPress={() => setShowPaywallModal(true)}
-                    >
-                      <Text style={{ color: '#000', fontWeight: '600', fontSize: scaledFonts.normal }}>Unlock iCloud Sync</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <Text style={{ color: colors.muted, marginBottom: 12, fontSize: scaledFonts.normal }}>
-                      {iCloudAvailable
-                        ? 'Automatically sync holdings across your Apple devices'
-                        : 'Sign in to iCloud in Settings to enable sync'}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        backgroundColor: isDarkMode ? '#27272a' : '#f4f4f5',
-                        padding: 12,
-                        borderRadius: 8,
-                        marginBottom: 12,
-                        opacity: iCloudAvailable ? 1 : 0.5,
-                      }}
-                      onPress={() => toggleiCloudSync(!iCloudSyncEnabled)}
-                      disabled={!iCloudAvailable}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: '500', fontSize: scaledFonts.normal }}>Enable iCloud Sync</Text>
-                      <View style={{
-                        width: 44,
-                        height: 24,
-                        borderRadius: 12,
-                        backgroundColor: iCloudSyncEnabled ? colors.success : (isDarkMode ? '#52525b' : '#d4d4d8'),
-                        justifyContent: 'center',
-                        padding: 2,
-                      }}>
-                        <View style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 10,
-                          backgroundColor: '#fff',
-                          alignSelf: iCloudSyncEnabled ? 'flex-end' : 'flex-start',
-                        }} />
-                      </View>
-                    </TouchableOpacity>
-
-                    {iCloudSyncEnabled && (
-                      <>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <Text style={{ color: colors.muted, fontSize: scaledFonts.small }}>
-                            {lastSyncTime
-                              ? `Last synced: ${new Date(lastSyncTime).toLocaleString()}`
-                              : 'Not synced yet'}
-                          </Text>
-                          <TouchableOpacity
-                            onPress={triggerManualSync}
-                            style={{ backgroundColor: isDarkMode ? '#27272a' : '#e4e4e7', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                            disabled={iCloudSyncing}
-                          >
-                            <Text style={{ color: colors.gold, fontWeight: '500', fontSize: scaledFonts.small }}>
-                              {iCloudSyncing ? 'Syncing...' : 'Sync Now'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                        <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, fontStyle: 'italic' }}>
-                          Changes sync automatically when you add or edit holdings
-                        </Text>
-                      </>
-                    )}
-                  </>
-                )}
+          // Reusable iOS Settings Row Component
+          const SettingsRow = ({ label, value, onPress, isFirst, isLast, showChevron = true, rightElement, subtitle, labelColor }) => (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: groupBg,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                minHeight: 44,
+                borderTopLeftRadius: isFirst ? 10 : 0,
+                borderTopRightRadius: isFirst ? 10 : 0,
+                borderBottomLeftRadius: isLast ? 10 : 0,
+                borderBottomRightRadius: isLast ? 10 : 0,
+              }}
+              onPress={onPress}
+              disabled={!onPress}
+              activeOpacity={onPress ? 0.6 : 1}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: labelColor || colors.text, fontSize: scaledFonts.normal }}>{label}</Text>
+                {subtitle && <Text style={{ color: colors.muted, fontSize: scaledFonts.small, marginTop: 2 }}>{subtitle}</Text>}
               </View>
-            )}
-
-            {/* Price Alerts Section (Gold/Lifetime Feature) */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>🔔 Price Alerts</Text>
-                  {!hasGoldAccess && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
-                      <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny, fontWeight: '600' }}>🔒 GOLD</Text>
-                    </View>
-                  )}
-                </View>
-                {alertsLoading && hasGoldAccess && <ActivityIndicator size="small" color={colors.gold} />}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {value && <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>{value}</Text>}
+                {rightElement}
+                {showChevron && onPress && <Text style={{ color: chevronColor, fontSize: 18, fontWeight: '600' }}>›</Text>}
               </View>
+            </TouchableOpacity>
+          );
 
-              {!hasGoldAccess ? (
-                <>
-                  <Text style={{ color: colors.muted, marginBottom: 12, fontSize: scaledFonts.normal }}>
-                    Get notified when gold or silver hits your target price
-                  </Text>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: colors.gold,
-                      padding: 12,
-                      borderRadius: 8,
-                      gap: 8,
-                    }}
-                    onPress={() => setShowPaywallModal(true)}
-                  >
-                    <Text style={{ color: '#000', fontWeight: '600', fontSize: scaledFonts.normal }}>Unlock Price Alerts</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={{ color: colors.muted, marginBottom: 12, fontSize: scaledFonts.normal }}>
-                    Get push notifications when spot prices hit your targets
-                  </Text>
-
-                  {/* Add New Alert Button */}
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: colors.gold,
-                      padding: 12,
-                      borderRadius: 8,
-                      gap: 8,
-                      marginBottom: priceAlerts.length > 0 ? 16 : 0,
-                    }}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowAddAlertModal(true);
-                    }}
-                  >
-                    <Text style={{ color: '#000', fontWeight: '600', fontSize: scaledFonts.normal }}>+ Add Price Alert</Text>
-                  </TouchableOpacity>
-
-                  {/* Active Alerts List */}
-                  {priceAlerts.filter(a => a.active).length > 0 && (
-                    <View>
-                      <Text style={{ color: colors.text, fontWeight: '600', marginBottom: 8, fontSize: scaledFonts.normal }}>Active Alerts</Text>
-                      {priceAlerts.filter(a => a.active).map((alert) => (
-                        <View
-                          key={alert.id}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)',
-                            padding: 12,
-                            borderRadius: 8,
-                            marginBottom: 8,
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={{ fontSize: scaledFonts.medium }}>{alert.metal === 'gold' ? '🥇' : '🥈'}</Text>
-                              <Text style={{ color: colors.text, fontWeight: '600', fontSize: scaledFonts.normal }}>
-                                {alert.metal === 'gold' ? 'Gold' : 'Silver'} {alert.direction === 'above' ? '↑' : '↓'} ${parseFloat(alert.target_price).toFixed(2)}
-                              </Text>
-                            </View>
-                            <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 2 }}>
-                              Notify when {alert.direction} ${parseFloat(alert.target_price).toFixed(2)}/oz
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => deletePriceAlert(alert.id)}
-                            style={{ padding: 8 }}
-                          >
-                            <Text style={{ color: colors.error, fontSize: 16 }}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Triggered Alerts */}
-                  {priceAlerts.filter(a => a.triggered).length > 0 && (
-                    <View style={{ marginTop: 8 }}>
-                      <Text style={{ color: colors.muted, fontWeight: '600', marginBottom: 8, fontSize: scaledFonts.normal }}>Triggered</Text>
-                      {priceAlerts.filter(a => a.triggered).slice(0, 3).map((alert) => (
-                        <View
-                          key={alert.id}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: isDarkMode ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.1)',
-                            padding: 12,
-                            borderRadius: 8,
-                            marginBottom: 8,
-                            opacity: 0.7,
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={{ fontSize: scaledFonts.medium }}>✓</Text>
-                              <Text style={{ color: colors.success, fontWeight: '600', fontSize: scaledFonts.normal }}>
-                                {alert.metal === 'gold' ? 'Gold' : 'Silver'} hit ${parseFloat(alert.target_price).toFixed(2)}
-                              </Text>
-                            </View>
-                            <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 2 }}>
-                              {alert.triggered_at ? new Date(alert.triggered_at).toLocaleDateString() : 'Recently'}
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => deletePriceAlert(alert.id)}
-                            style={{ padding: 8 }}
-                          >
-                            <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {priceAlerts.length === 0 && !alertsLoading && (
-                    <Text style={{ color: colors.muted, fontSize: scaledFonts.small, textAlign: 'center', marginTop: 4, fontStyle: 'italic' }}>
-                      No alerts set. Tap above to create one!
-                    </Text>
-                  )}
-                </>
-              )}
+          // Separator between rows
+          const RowSeparator = () => (
+            <View style={{ backgroundColor: groupBg }}>
+              <View style={{ height: 0.5, backgroundColor: separatorColor, marginLeft: 16 }} />
             </View>
+          );
 
-            {/* Home Screen Widget Section (iOS only, Gold/Lifetime Feature) */}
-            {Platform.OS === 'ios' && (
-              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>📱 Home Screen Widget</Text>
-                    {!hasGoldAccess && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
-                        <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny, fontWeight: '600' }}>🔒 GOLD</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
+          // Section Header
+          const SectionHeader = ({ title }) => (
+            <Text style={{
+              color: isDarkMode ? '#8e8e93' : '#6d6d72',
+              fontSize: scaledFonts.small,
+              fontWeight: '400',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+              marginTop: 24,
+              marginLeft: 16,
+              letterSpacing: 0.5,
+            }}>{title}</Text>
+          );
 
-                {!hasGoldAccess ? (
-                  <>
-                    <Text style={{ color: colors.muted, marginBottom: 12, fontSize: scaledFonts.normal }}>
-                      View your portfolio value and spot prices on your home screen
-                    </Text>
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: colors.gold,
-                        padding: 12,
-                        borderRadius: 8,
-                        gap: 8,
-                      }}
-                      onPress={() => setShowPaywallModal(true)}
-                    >
-                      <Text style={{ color: '#000', fontWeight: '600', fontSize: scaledFonts.normal }}>Unlock Home Widget</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <Text style={{ color: colors.muted, marginBottom: 12, fontSize: scaledFonts.normal }}>
-                      Add the Stack Tracker Gold widget to your home screen to see your portfolio at a glance.
-                    </Text>
+          // Section Footer
+          const SectionFooter = ({ text }) => (
+            <Text style={{
+              color: isDarkMode ? '#8e8e93' : '#6d6d72',
+              fontSize: scaledFonts.small,
+              marginTop: 8,
+              marginLeft: 16,
+              marginRight: 16,
+              lineHeight: 18,
+            }}>{text}</Text>
+          );
 
-                    {/* Widget Preview */}
-                    <View style={{
-                      backgroundColor: '#1a1a2e',
-                      borderRadius: 16,
-                      padding: 16,
-                      marginBottom: 12,
-                    }}>
-                      <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '500', marginBottom: 8 }}>
-                        Stack Tracker Gold
-                      </Text>
-                      <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', marginBottom: 4 }}>
-                        {formatCurrency(totalMeltValue, 0)}
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
-                        <Text style={{ color: colors.gold, fontSize: 11 }}>Gold ${goldSpot.toFixed(2)}</Text>
-                        <Text style={{ color: colors.silver, fontSize: 11 }}>Silver ${silverSpot.toFixed(2)}</Text>
-                      </View>
-                      <Text style={{ color: '#71717a', fontSize: 9 }}>Widget preview</Text>
-                    </View>
-
-                    {/* Instructions */}
-                    <View style={{ backgroundColor: isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)', padding: 12, borderRadius: 8 }}>
-                      <Text style={{ color: colors.text, fontWeight: '600', marginBottom: 6, fontSize: 13 }}>How to add widget:</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-                        1. Long-press your home screen{'\n'}
-                        2. Tap the + button (top left){'\n'}
-                        3. Search for "Stack Tracker Gold"{'\n'}
-                        4. Choose small or medium size{'\n'}
-                        5. Tap "Add Widget"
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            )}
-
-            {/* Appearance Section */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>🎨 Appearance</Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                {[
-                  { key: 'light', label: '☀️ Light' },
-                  { key: 'dark', label: '🌙 Dark' },
-                  { key: 'system', label: '⚙️ System' },
-                ].map((option) => (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      paddingHorizontal: 8,
-                      borderRadius: 8,
-                      backgroundColor: themePreference === option.key
-                        ? (isDarkMode ? 'rgba(251,191,36,0.2)' : 'rgba(217,119,6,0.2)')
-                        : colors.cardBg,
-                      borderWidth: 1,
-                      borderColor: themePreference === option.key ? colors.gold : colors.border,
-                      alignItems: 'center',
-                    }}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      changeTheme(option.key);
-                    }}
-                  >
-                    <Text style={{
-                      color: themePreference === option.key ? colors.gold : colors.text,
-                      fontWeight: themePreference === option.key ? '600' : '400',
-                      fontSize: scaledFonts.small,
-                    }}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 8 }}>
-                {themePreference === 'system' ? 'Following iOS settings' : `${themePreference === 'dark' ? 'Dark' : 'Light'} mode enabled`}
-              </Text>
-            </View>
-
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>📦 Manual Backup</Text>
-              <Text style={{ color: colors.muted, marginBottom: 16, fontSize: scaledFonts.normal }}>Export to Files, Google Drive, or any storage</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: colors.success }]} onPress={createBackup}>
-                  <Text style={{ color: '#000', fontWeight: '600', fontSize: scaledFonts.normal }}>📤 Backup</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.buttonOutline, { flex: 1 }]} onPress={restoreBackup}>
-                  <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>📥 Restore</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Share My Stack Section */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>📸 Share My Stack</Text>
-              <Text style={{ color: colors.muted, marginBottom: 16, fontSize: scaledFonts.normal }}>Create a shareable image of your portfolio summary</Text>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: colors.gold }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowSharePreview(true);
-                }}
-                disabled={silverItems.length === 0 && goldItems.length === 0}
-              >
-                <Text style={{ color: '#000', fontWeight: '600', fontSize: scaledFonts.normal }}>
-                  {silverItems.length === 0 && goldItems.length === 0 ? 'Add holdings first' : '🖼️ Generate Share Image'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>⚙️ Settings</Text>
-
+          return (
+            <View style={{ flex: 1, backgroundColor: settingsBg, marginHorizontal: -20, marginTop: -20, paddingHorizontal: 16, paddingTop: 8 }}>
+              {/* Upgrade to Gold - prominent at top for free users */}
               {!hasGold && !hasLifetimeAccess && (
-                <TouchableOpacity
-                  style={[styles.statRow, {
-                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                    borderRadius: 8,
-                    padding: 12,
-                    marginBottom: 12,
-                    borderWidth: 1,
-                    borderColor: 'rgba(251, 191, 36, 0.3)'
-                  }]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setShowPaywallModal(true);
-                  }}
-                >
-                  <Text style={{ color: colors.gold, fontWeight: '600', fontSize: scaledFonts.normal }}>👑 Upgrade to Gold</Text>
-                </TouchableOpacity>
+                <>
+                  <SectionHeader title="" />
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: groupBg,
+                      paddingVertical: 14,
+                      paddingHorizontal: 16,
+                      borderRadius: 10,
+                    }}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setShowPaywallModal(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: 'rgba(251, 191, 36, 0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 16 }}>👑</Text>
+                      </View>
+                      <View>
+                        <Text style={{ color: colors.gold, fontSize: scaledFonts.normal, fontWeight: '600' }}>Upgrade to Gold</Text>
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.small }}>Unlock all premium features</Text>
+                      </View>
+                    </View>
+                    <Text style={{ color: chevronColor, fontSize: 18, fontWeight: '600' }}>›</Text>
+                  </TouchableOpacity>
+                </>
               )}
 
-              <TouchableOpacity style={styles.statRow} onPress={exportCSV}>
-                <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>📤 Export CSV</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.statRow} onPress={() => setShowPrivacyModal(true)}>
-                <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>🔒 Privacy Info</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.statRow} onPress={fetchSpotPrices}>
-                <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>🔄 Refresh Prices</Text>
-              </TouchableOpacity>
+              {/* Gold Features Section */}
+              <SectionHeader title="Gold Features" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                {/* iCloud Sync - iOS only */}
+                {Platform.OS === 'ios' && (
+                  <>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: groupBg,
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      minHeight: 44,
+                      borderTopLeftRadius: 10,
+                      borderTopRightRadius: 10,
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ color: '#fff', fontSize: 14 }}>☁️</Text>
+                        </View>
+                        <View>
+                          <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>iCloud Sync</Text>
+                          {!hasGoldAccess && <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny }}>GOLD</Text>}
+                        </View>
+                      </View>
+                      {hasGoldAccess ? (
+                        <Switch
+                          value={iCloudSyncEnabled}
+                          onValueChange={(value) => toggleiCloudSync(value)}
+                          disabled={!iCloudAvailable}
+                          trackColor={{ false: isDarkMode ? '#39393d' : '#e9e9eb', true: '#34c759' }}
+                          thumbColor="#fff"
+                          ios_backgroundColor={isDarkMode ? '#39393d' : '#e9e9eb'}
+                        />
+                      ) : (
+                        <TouchableOpacity onPress={() => setShowPaywallModal(true)}>
+                          <Text style={{ color: '#007AFF', fontSize: scaledFonts.normal }}>Unlock</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <RowSeparator />
+                  </>
+                )}
+
+                {/* Price Alerts */}
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: groupBg,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  minHeight: 44,
+                  borderTopLeftRadius: Platform.OS !== 'ios' ? 10 : 0,
+                  borderTopRightRadius: Platform.OS !== 'ios' ? 10 : 0,
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#FF9500', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 14 }}>🔔</Text>
+                    </View>
+                    <View>
+                      <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Price Alerts</Text>
+                      {!hasGoldAccess && <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny }}>GOLD</Text>}
+                      {hasGoldAccess && priceAlerts.filter(a => a.active).length > 0 && (
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny }}>{priceAlerts.filter(a => a.active).length} active</Text>
+                      )}
+                    </View>
+                  </View>
+                  {hasGoldAccess ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowAddAlertModal(true);
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      <Text style={{ color: '#007AFF', fontSize: scaledFonts.normal }}>Manage</Text>
+                      <Text style={{ color: chevronColor, fontSize: 18, fontWeight: '600' }}>›</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => setShowPaywallModal(true)}>
+                      <Text style={{ color: '#007AFF', fontSize: scaledFonts.normal }}>Unlock</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <RowSeparator />
+
+                {/* Home Screen Widget - iOS only */}
+                {Platform.OS === 'ios' && (
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: groupBg,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    minHeight: 44,
+                    borderBottomLeftRadius: 10,
+                    borderBottomRightRadius: 10,
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#5856D6', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 14 }}>📱</Text>
+                      </View>
+                      <View>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Home Screen Widget</Text>
+                        {!hasGoldAccess && <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny }}>GOLD</Text>}
+                      </View>
+                    </View>
+                    {hasGoldAccess ? (
+                      <Text style={{ color: colors.success, fontSize: scaledFonts.normal }}>Active</Text>
+                    ) : (
+                      <TouchableOpacity onPress={() => setShowPaywallModal(true)}>
+                        <Text style={{ color: '#007AFF', fontSize: scaledFonts.normal }}>Unlock</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Analytics - show for non-iOS or at end */}
+                {Platform.OS !== 'ios' && (
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: groupBg,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    minHeight: 44,
+                    borderBottomLeftRadius: 10,
+                    borderBottomRightRadius: 10,
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#34C759', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 14 }}>📈</Text>
+                      </View>
+                      <View>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Portfolio Analytics</Text>
+                        {!hasGoldAccess && <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny }}>GOLD</Text>}
+                      </View>
+                    </View>
+                    {hasGoldAccess ? (
+                      <Text style={{ color: colors.success, fontSize: scaledFonts.normal }}>Active</Text>
+                    ) : (
+                      <TouchableOpacity onPress={() => setShowPaywallModal(true)}>
+                        <Text style={{ color: '#007AFF', fontSize: scaledFonts.normal }}>Unlock</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </View>
+              {Platform.OS === 'ios' && hasGoldAccess && iCloudSyncEnabled && (
+                <SectionFooter text={lastSyncTime ? `Last synced ${new Date(lastSyncTime).toLocaleString()}` : 'Syncs automatically when you add or edit holdings'} />
+              )}
+
+              {/* Active Price Alerts - show if user has Gold and has alerts */}
+              {hasGoldAccess && priceAlerts.filter(a => a.active).length > 0 && (
+                <>
+                  <SectionHeader title="Active Alerts" />
+                  <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                    {priceAlerts.filter(a => a.active).map((alert, index, arr) => (
+                      <View key={alert.id}>
+                        <View style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: groupBg,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          minHeight: 44,
+                          borderTopLeftRadius: index === 0 ? 10 : 0,
+                          borderTopRightRadius: index === 0 ? 10 : 0,
+                          borderBottomLeftRadius: index === arr.length - 1 ? 10 : 0,
+                          borderBottomRightRadius: index === arr.length - 1 ? 10 : 0,
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <View style={{
+                              width: 30, height: 30, borderRadius: 6,
+                              backgroundColor: alert.metal === 'gold' ? 'rgba(251,191,36,0.2)' : 'rgba(156,163,175,0.2)',
+                              alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              <Text style={{ fontSize: 14 }}>{alert.metal === 'gold' ? '🥇' : '🥈'}</Text>
+                            </View>
+                            <View>
+                              <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>
+                                {alert.metal === 'gold' ? 'Gold' : 'Silver'} {alert.direction === 'above' ? 'above' : 'below'} ${parseFloat(alert.target_price).toFixed(2)}
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity onPress={() => deletePriceAlert(alert.id)} style={{ padding: 4 }}>
+                            <Text style={{ color: colors.error, fontSize: scaledFonts.normal }}>Remove</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {index < arr.length - 1 && <RowSeparator />}
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {/* Appearance Section */}
+              <SectionHeader title="Appearance" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <View style={{
+                  backgroundColor: groupBg,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {[
+                      { key: 'light', label: 'Light', icon: '☀️' },
+                      { key: 'dark', label: 'Dark', icon: '🌙' },
+                      { key: 'system', label: 'Auto', icon: '⚙️' },
+                    ].map((option) => (
+                      <TouchableOpacity
+                        key={option.key}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          paddingHorizontal: 8,
+                          borderRadius: 8,
+                          backgroundColor: themePreference === option.key
+                            ? (isDarkMode ? '#48484a' : '#e5e5ea')
+                            : 'transparent',
+                          alignItems: 'center',
+                        }}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          changeTheme(option.key);
+                        }}
+                      >
+                        <Text style={{ fontSize: 20, marginBottom: 4 }}>{option.icon}</Text>
+                        <Text style={{
+                          color: themePreference === option.key ? colors.text : colors.muted,
+                          fontWeight: themePreference === option.key ? '600' : '400',
+                          fontSize: scaledFonts.small,
+                        }}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+              <SectionFooter text={themePreference === 'system' ? 'Following system appearance settings' : `${themePreference === 'dark' ? 'Dark' : 'Light'} mode enabled`} />
+
+              {/* Accessibility Section */}
+              <SectionHeader title="Accessibility" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: groupBg,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  minHeight: 44,
+                  borderRadius: 10,
+                }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Large Text</Text>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.small, marginTop: 2 }}>Increase font sizes throughout the app</Text>
+                  </View>
+                  <Switch
+                    value={largeText}
+                    onValueChange={(value) => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      toggleLargeText(value);
+                    }}
+                    trackColor={{ false: isDarkMode ? '#39393d' : '#e9e9eb', true: '#34c759' }}
+                    thumbColor="#fff"
+                    ios_backgroundColor={isDarkMode ? '#39393d' : '#e9e9eb'}
+                  />
+                </View>
+              </View>
+
+              {/* Data & Backup Section */}
+              <SectionHeader title="Data & Backup" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <SettingsRow
+                  label="Export to Backup"
+                  onPress={createBackup}
+                  isFirst={true}
+                  isLast={false}
+                />
+                <RowSeparator />
+                <SettingsRow
+                  label="Restore from Backup"
+                  onPress={restoreBackup}
+                  isFirst={false}
+                  isLast={false}
+                />
+                <RowSeparator />
+                <SettingsRow
+                  label="Export as CSV"
+                  onPress={exportCSV}
+                  isFirst={false}
+                  isLast={true}
+                />
+              </View>
+              <SectionFooter text="Backups include all holdings and settings. Export to Files, iCloud Drive, or any storage." />
+
+              {/* Share & Social Section */}
+              <SectionHeader title="Share" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: groupBg,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    minHeight: 44,
+                    borderRadius: 10,
+                  }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowSharePreview(true);
+                  }}
+                  disabled={silverItems.length === 0 && goldItems.length === 0}
+                  activeOpacity={0.6}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#FF2D55', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 14 }}>📸</Text>
+                    </View>
+                    <View>
+                      <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Share My Stack</Text>
+                      <Text style={{ color: colors.muted, fontSize: scaledFonts.small }}>Create a shareable portfolio image</Text>
+                    </View>
+                  </View>
+                  <Text style={{ color: chevronColor, fontSize: 18, fontWeight: '600' }}>›</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Actions Section */}
+              <SectionHeader title="Actions" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <SettingsRow
+                  label="Refresh Spot Prices"
+                  onPress={fetchSpotPrices}
+                  isFirst={true}
+                  isLast={false}
+                />
+                <RowSeparator />
+                <SettingsRow
+                  label="View Help Guide"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowHelpModal(true);
+                  }}
+                  isFirst={false}
+                  isLast={false}
+                />
+                <RowSeparator />
+                <SettingsRow
+                  label="Privacy Info"
+                  onPress={() => setShowPrivacyModal(true)}
+                  isFirst={false}
+                  isLast={true}
+                />
+              </View>
 
               {/* Scan Usage - only show for free users */}
               {!hasGold && !hasLifetimeAccess && (
-                <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <View>
-                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>📷 Scan Usage</Text>
-                    <Text style={{ color: scanUsage.scansUsed >= scanUsage.scansLimit ? colors.error : colors.muted, fontSize: scaledFonts.small, marginTop: 2 }}>
-                      {scanUsage.scansUsed}/{scanUsage.scansLimit} scans used this month
-                    </Text>
-                    {scanUsage.resetsAt && (
-                      <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 2 }}>
-                        Resets {new Date(scanUsage.resetsAt).toLocaleDateString()}
-                      </Text>
-                    )}
+                <>
+                  <SectionHeader title="Usage" />
+                  <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                    <View style={{
+                      backgroundColor: groupBg,
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      borderRadius: 10,
+                    }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Receipt Scans</Text>
+                        <Text style={{ color: scanUsage.scansUsed >= scanUsage.scansLimit ? colors.error : colors.muted, fontSize: scaledFonts.normal, fontWeight: '600' }}>
+                          {scanUsage.scansUsed} / {scanUsage.scansLimit}
+                        </Text>
+                      </View>
+                      {/* Progress bar */}
+                      <View style={{ height: 4, backgroundColor: isDarkMode ? '#39393d' : '#e5e5ea', borderRadius: 2, marginTop: 8 }}>
+                        <View style={{
+                          height: 4,
+                          backgroundColor: scanUsage.scansUsed >= scanUsage.scansLimit ? colors.error : '#34c759',
+                          borderRadius: 2,
+                          width: `${Math.min((scanUsage.scansUsed / scanUsage.scansLimit) * 100, 100)}%`
+                        }} />
+                      </View>
+                    </View>
+                  </View>
+                  {scanUsage.resetsAt && (
+                    <SectionFooter text={`Resets ${new Date(scanUsage.resetsAt).toLocaleDateString()}`} />
+                  )}
+                </>
+              )}
+
+              {/* About Section */}
+              <SectionHeader title="About" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <View style={{
+                  backgroundColor: groupBg,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderTopLeftRadius: 10,
+                  borderTopRightRadius: 10,
+                }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Version</Text>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>1.1.0</Text>
                   </View>
                 </View>
-              )}
-            </View>
-
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>About</Text>
-              <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Stack Tracker Gold v1.1.0</Text>
-              <Text style={{ color: colors.gold, fontStyle: 'italic', marginTop: 8, fontSize: scaledFonts.normal }}>"We CAN'T access your data."</Text>
-
-              {hasLifetimeAccess && (
-                <View style={{ marginTop: 12, padding: 8, backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: 8 }}>
-                  <Text style={{ color: colors.success, fontSize: scaledFonts.small, fontWeight: '600' }}>
-                    ✓ Lifetime Access Active
-                  </Text>
-                </View>
-              )}
-
-              {/* Legal Links */}
-              <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'center', gap: 16 }}>
-                <TouchableOpacity onPress={() => Linking.openURL('https://stack-tracker-pro-production.up.railway.app/privacy')}>
-                  <Text style={{ color: colors.muted, fontSize: scaledFonts.small, textDecorationLine: 'underline' }}>Privacy Policy</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL('https://stack-tracker-pro-production.up.railway.app/terms')}>
-                  <Text style={{ color: colors.muted, fontSize: scaledFonts.small, textDecorationLine: 'underline' }}>Terms of Use</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Help & Tips Section */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Help & Tips</Text>
-              <TouchableOpacity
-                style={styles.statRow}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowHelpModal(true);
-                }}
-              >
-                <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>📖 View Help Guide</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Accessibility Section */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Accessibility</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Large Text</Text>
-                  <Text style={{ color: colors.muted, fontSize: scaledFonts.small, marginTop: 2 }}>Increase font sizes throughout the app</Text>
-                </View>
-                <Switch
-                  value={largeText}
-                  onValueChange={(value) => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    toggleLargeText(value);
-                  }}
-                  trackColor={{ false: '#3e3e3e', true: colors.gold }}
-                  thumbColor={largeText ? '#fff' : '#f4f3f4'}
-                  ios_backgroundColor="#3e3e3e"
+                <RowSeparator />
+                {hasLifetimeAccess && (
+                  <>
+                    <View style={{
+                      backgroundColor: groupBg,
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                    }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Subscription</Text>
+                        <Text style={{ color: colors.success, fontSize: scaledFonts.normal, fontWeight: '600' }}>Lifetime</Text>
+                      </View>
+                    </View>
+                    <RowSeparator />
+                  </>
+                )}
+                {hasGold && !hasLifetimeAccess && (
+                  <>
+                    <View style={{
+                      backgroundColor: groupBg,
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                    }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Subscription</Text>
+                        <Text style={{ color: colors.gold, fontSize: scaledFonts.normal, fontWeight: '600' }}>Gold</Text>
+                      </View>
+                    </View>
+                    <RowSeparator />
+                  </>
+                )}
+                <SettingsRow
+                  label="Privacy Policy"
+                  onPress={() => Linking.openURL('https://stack-tracker-pro-production.up.railway.app/privacy')}
+                  isFirst={false}
+                  isLast={false}
+                />
+                <RowSeparator />
+                <SettingsRow
+                  label="Terms of Use"
+                  onPress={() => Linking.openURL('https://stack-tracker-pro-production.up.railway.app/terms')}
+                  isFirst={false}
+                  isLast={true}
                 />
               </View>
-            </View>
+              <SectionFooter text="Stack Tracker Gold - Privacy-first precious metals tracking. We can't access your data." />
 
-            {/* Advanced Section */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Advanced</Text>
+              {/* Advanced Section */}
+              <SectionHeader title="Advanced" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
+                <View style={{
+                  backgroundColor: groupBg,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Support ID</Text>
+                      <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }} numberOfLines={1}>
+                        {revenueCatUserId || 'Loading...'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (revenueCatUserId) {
+                          Clipboard.setString(revenueCatUserId);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          Alert.alert('Copied', 'Support ID copied to clipboard');
+                        }
+                      }}
+                      disabled={!revenueCatUserId}
+                    >
+                      <Text style={{ color: '#007AFF', fontSize: scaledFonts.normal }}>{revenueCatUserId ? 'Copy' : ''}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+              <SectionFooter text="Share this ID with support if you need help with your account." />
 
-              <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600', marginBottom: 4 }}>Support ID</Text>
-              <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginBottom: 8 }}>Share this with support if you need help with your account</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ color: colors.text, fontSize: scaledFonts.tiny, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', flex: 1 }} numberOfLines={1}>
-                  {revenueCatUserId || 'Loading...'}
-                </Text>
+              {/* Danger Zone Section */}
+              <SectionHeader title="Danger Zone" />
+              <View style={{ borderRadius: 10, overflow: 'hidden' }}>
                 <TouchableOpacity
-                  onPress={() => {
-                    if (revenueCatUserId) {
-                      Clipboard.setString(revenueCatUserId);
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('Copied', 'Support ID copied to clipboard');
-                    }
+                  style={{
+                    backgroundColor: groupBg,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    minHeight: 44,
+                    borderRadius: 10,
+                    alignItems: 'center',
                   }}
-                  style={{ backgroundColor: '#27272a', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                  disabled={!revenueCatUserId}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    Alert.alert(
+                      'Clear All Data',
+                      'Are you sure? This will permanently delete all your holdings, settings, and preferences.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Continue',
+                          style: 'destructive',
+                          onPress: () => {
+                            Alert.alert(
+                              'Final Warning',
+                              'This cannot be undone. Are you absolutely sure you want to erase all your data?',
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                  text: 'Yes, Clear Everything',
+                                  style: 'destructive',
+                                  onPress: clearAllData,
+                                },
+                              ]
+                            );
+                          },
+                        },
+                      ]
+                    );
+                  }}
                 >
-                  <Text style={{ color: revenueCatUserId ? colors.gold : colors.muted, fontSize: scaledFonts.tiny, fontWeight: '600' }}>Copy</Text>
+                  <Text style={{ color: '#FF3B30', fontSize: scaledFonts.normal }}>Clear All Data</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+              <SectionFooter text="This will permanently delete all holdings, settings, and preferences. This action cannot be undone." />
 
-            {/* Danger Zone Section */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: 'rgba(239, 68, 68, 0.5)', borderWidth: 1 }]}>
-              <Text style={[styles.cardTitle, { color: '#EF4444', fontSize: scaledFonts.medium }]}>⚠️ Danger Zone</Text>
-              <Text style={{ color: colors.muted, fontSize: scaledFonts.small, marginBottom: 16 }}>
-                These actions are permanent and cannot be undone.
-              </Text>
-              <TouchableOpacity
-                style={{
-                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                  paddingVertical: 14,
-                  paddingHorizontal: 20,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: 'rgba(239, 68, 68, 0.3)',
-                  alignItems: 'center',
-                }}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  Alert.alert(
-                    'Clear All Data',
-                    'Are you sure? This will permanently delete all your holdings, settings, and preferences.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Continue',
-                        style: 'destructive',
-                        onPress: () => {
-                          // Second confirmation
-                          Alert.alert(
-                            'Final Warning',
-                            'This cannot be undone. Are you absolutely sure you want to erase all your data?',
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Yes, Clear Everything',
-                                style: 'destructive',
-                                onPress: clearAllData,
-                              },
-                            ]
-                          );
-                        },
-                      },
-                    ]
-                  );
-                }}
-              >
-                <Text style={{ color: '#EF4444', fontSize: scaledFonts.normal, fontWeight: '600' }}>🗑️ Clear All Data</Text>
-              </TouchableOpacity>
+              {/* Extra padding at bottom */}
+              <View style={{ height: 50 }} />
             </View>
-          </>
-        )}
+          );
+        })()}
 
         <View style={{ height: (tab === 'settings' || tab === 'analytics') ? 300 : 100 }} />
       </ScrollView>
