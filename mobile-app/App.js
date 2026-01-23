@@ -26,6 +26,7 @@ import * as StoreReview from 'expo-store-review';
 import { CloudStorage, CloudStorageScope } from 'react-native-cloud-storage';
 import { initializePurchases, hasGoldEntitlement, getUserEntitlements } from './src/utils/entitlements';
 import { syncWidgetData, isWidgetKitAvailable } from './src/utils/widgetKit';
+import { registerBackgroundFetch, getBackgroundFetchStatus } from './src/utils/backgroundTasks';
 import { LineChart } from 'react-native-chart-kit';
 import GoldPaywall from './src/components/GoldPaywall';
 import Tutorial from './src/components/Tutorial';
@@ -1616,6 +1617,25 @@ function AppContent() {
     return () => clearTimeout(timeoutId);
   }, [isAuthenticated]); // Run when isAuthenticated changes
 
+  // Register background fetch for iOS (keeps widget data fresh when app is closed)
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      const setupBackgroundFetch = async () => {
+        try {
+          const registered = await registerBackgroundFetch();
+          if (registered) {
+            const status = await getBackgroundFetchStatus();
+            if (__DEV__) console.log('📡 Background fetch status:', status);
+          }
+        } catch (error) {
+          // Non-critical - log but don't crash
+          console.log('Background fetch setup skipped:', error?.message);
+        }
+      };
+      setupBackgroundFetch();
+    }
+  }, []); // Run once on mount
+
   // Fetch scan status when RevenueCat user ID is available
   useEffect(() => {
     if (revenueCatUserId && !hasGold && !hasLifetimeAccess) {
@@ -1685,6 +1705,9 @@ function AppContent() {
   }, [isAuthenticated, dataLoaded, spotPricesLive, midnightSnapshot, totalSilverOzt, totalGoldOzt, silverSpot, goldSpot, totalMeltValue, silverItems.length, goldItems.length, spotChange]);
 
   // Auto-refresh spot prices every 1 minute (when app is active)
+  // Track previous app state to detect foreground transitions
+  const appStateRef = useRef(AppState.currentState);
+
   useEffect(() => {
     let priceRefreshInterval = null;
 
@@ -1694,12 +1717,10 @@ function AppContent() {
         clearInterval(priceRefreshInterval);
       }
 
-      // Fetch prices every 60 seconds (1 minute)
+      // Fetch prices every 60 seconds (1 minute) when app is active
       priceRefreshInterval = setInterval(() => {
-        if (isAuthenticated) {
-          if (__DEV__) console.log('🔄 Auto-refreshing spot prices (1-min interval)...');
-          fetchSpotPrices(true); // silent = true (no loading indicator)
-        }
+        if (__DEV__) console.log('🔄 Auto-refreshing spot prices (1-min interval)...');
+        fetchSpotPrices(true); // silent = true (no loading indicator)
       }, 60000); // 60,000ms = 1 minute
     };
 
@@ -1713,21 +1734,25 @@ function AppContent() {
 
     // Listen to app state changes
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        // App came to foreground - fetch prices immediately, then start auto-refresh
-        if (__DEV__) console.log('▶️  App active - fetching prices and starting auto-refresh');
-        if (isAuthenticated) {
-          fetchSpotPrices(true); // Fetch immediately on foreground
-        }
+      const previousState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      // App came to foreground from background/inactive
+      if (nextAppState === 'active' && previousState !== 'active') {
+        if (__DEV__) console.log('▶️  App came to foreground - fetching fresh prices immediately');
+        // ALWAYS fetch fresh prices when app comes to foreground
+        fetchSpotPrices(true).catch(err => {
+          if (__DEV__) console.error('Foreground price fetch failed:', err?.message);
+        });
         startPriceRefresh();
-      } else {
+      } else if (nextAppState !== 'active') {
         // App went to background - stop auto-refresh
         stopPriceRefresh();
       }
     });
 
-    // Start auto-refresh when component mounts (if authenticated)
-    if (isAuthenticated) {
+    // Start auto-refresh when component mounts (app is active)
+    if (AppState.currentState === 'active') {
       startPriceRefresh();
     }
 
@@ -1736,7 +1761,7 @@ function AppContent() {
       stopPriceRefresh();
       subscription.remove();
     };
-  }, [isAuthenticated]);
+  }, []); // Empty dependency - set up once on mount
 
   // Free tier limit check
   const handleAddPurchase = () => {
@@ -5476,7 +5501,7 @@ function AppContent() {
                 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Version</Text>
-                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>1.1.0</Text>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>1.2.0</Text>
                   </View>
                 </View>
                 <RowSeparator />
