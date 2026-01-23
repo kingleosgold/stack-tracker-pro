@@ -9,7 +9,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   Alert, Modal, Platform, SafeAreaView, StatusBar, ActivityIndicator,
   Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Dimensions, AppState, FlatList, Clipboard, Linking,
-  useColorScheme, RefreshControl,
+  useColorScheme, RefreshControl, Switch,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -574,11 +574,15 @@ function AppContent() {
   // Theme
   const systemColorScheme = useColorScheme();
   const [themePreference, setThemePreference] = useState('system'); // 'system', 'light', 'dark'
+  const [largeText, setLargeText] = useState(false); // Accessibility: increase font sizes
 
   // Derive actual theme from preference
   const isDarkMode = themePreference === 'system'
     ? systemColorScheme !== 'light'
     : themePreference === 'dark';
+
+  // Font size multiplier for accessibility
+  const fontScale = largeText ? 1.25 : 1;
 
   // Core State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -748,6 +752,45 @@ function AppContent() {
       await AsyncStorage.setItem('stack_theme_preference', newTheme);
     } catch (error) {
       console.error('Failed to save theme preference:', error);
+    }
+  };
+
+  // Toggle large text accessibility setting
+  const toggleLargeText = async (enabled) => {
+    setLargeText(enabled);
+    try {
+      await AsyncStorage.setItem('stack_large_text', enabled ? 'true' : 'false');
+    } catch (error) {
+      console.error('Failed to save large text preference:', error);
+    }
+  };
+
+  // Clear all app data and reset to fresh state
+  const clearAllData = async () => {
+    try {
+      // Clear all AsyncStorage keys
+      await AsyncStorage.clear();
+
+      // Reset all state to defaults
+      setSilverItems([]);
+      setGoldItems([]);
+      setSilverSpot(77);
+      setGoldSpot(4530);
+      setPriceSource('cached');
+      setPriceTimestamp(null);
+      setSpotPricesLive(false);
+      setSpotChange({ gold: { amount: null, percent: null, prevClose: null }, silver: { amount: null, percent: null, prevClose: null } });
+      setSpotChangeDisplayMode('percent');
+      setMidnightSnapshot(null);
+      setThemePreference('system');
+      setLargeText(false);
+
+      // Show success message
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Data Cleared', 'All your data has been erased. The app has been reset to its initial state.');
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+      Alert.alert('Error', 'Failed to clear data. Please try again.');
     }
   };
 
@@ -1022,7 +1065,7 @@ function AppContent() {
 
   const loadData = async () => {
     try {
-      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedMidnightSnapshot, storedTheme, storedChangeDisplayMode] = await Promise.all([
+      const [silver, gold, silverS, goldS, timestamp, hasSeenTutorial, storedMidnightSnapshot, storedTheme, storedChangeDisplayMode, storedLargeText] = await Promise.all([
         AsyncStorage.getItem('stack_silver'),
         AsyncStorage.getItem('stack_gold'),
         AsyncStorage.getItem('stack_silver_spot'),
@@ -1032,6 +1075,7 @@ function AppContent() {
         AsyncStorage.getItem('stack_midnight_snapshot'),
         AsyncStorage.getItem('stack_theme_preference'),
         AsyncStorage.getItem('stack_spot_change_display_mode'),
+        AsyncStorage.getItem('stack_large_text'),
       ]);
 
       // Safely parse JSON data with fallbacks
@@ -1056,6 +1100,9 @@ function AppContent() {
       }
       if (storedChangeDisplayMode && ['percent', 'amount'].includes(storedChangeDisplayMode)) {
         setSpotChangeDisplayMode(storedChangeDisplayMode);
+      }
+      if (storedLargeText === 'true') {
+        setLargeText(true);
       }
 
       // Show tutorial if user hasn't seen it
@@ -5076,6 +5123,27 @@ function AppContent() {
               </TouchableOpacity>
             </View>
 
+            {/* Accessibility Section */}
+            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Accessibility</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: 14 }}>Large Text</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>Increase font sizes throughout the app</Text>
+                </View>
+                <Switch
+                  value={largeText}
+                  onValueChange={(value) => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    toggleLargeText(value);
+                  }}
+                  trackColor={{ false: '#3e3e3e', true: colors.gold }}
+                  thumbColor={largeText ? '#fff' : '#f4f3f4'}
+                  ios_backgroundColor="#3e3e3e"
+                />
+              </View>
+            </View>
+
             {/* Advanced Section */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>Advanced</Text>
@@ -5100,6 +5168,56 @@ function AppContent() {
                   <Text style={{ color: revenueCatUserId ? colors.gold : colors.muted, fontSize: 11, fontWeight: '600' }}>Copy</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* Danger Zone Section */}
+            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: 'rgba(239, 68, 68, 0.5)', borderWidth: 1 }]}>
+              <Text style={[styles.cardTitle, { color: '#EF4444' }]}>⚠️ Danger Zone</Text>
+              <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 16 }}>
+                These actions are permanent and cannot be undone.
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                  alignItems: 'center',
+                }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  Alert.alert(
+                    'Clear All Data',
+                    'Are you sure? This will permanently delete all your holdings, settings, and preferences.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Continue',
+                        style: 'destructive',
+                        onPress: () => {
+                          // Second confirmation
+                          Alert.alert(
+                            'Final Warning',
+                            'This cannot be undone. Are you absolutely sure you want to erase all your data?',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Yes, Clear Everything',
+                                style: 'destructive',
+                                onPress: clearAllData,
+                              },
+                            ]
+                          );
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Text style={{ color: '#EF4444', fontSize: 15, fontWeight: '600' }}>🗑️ Clear All Data</Text>
+              </TouchableOpacity>
             </View>
           </>
         )}
@@ -5440,24 +5558,59 @@ function AppContent() {
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Getting Started</Text>
           <Text style={[styles.privacyItem, { color: colors.text }]}>• Add purchases manually by tapping "+" on the Holdings tab</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Or use AI Receipt Scanner to automatically extract data from receipts and invoices</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Or use AI Receipt Scanner to automatically extract data from receipts</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Pull down on the Dashboard to refresh live spot prices</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>AI Receipt Scanner</Text>
           <Text style={[styles.privacyItem, { color: colors.text }]}>• Tap "Take Photo" to capture a receipt with your camera</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Tap "Upload Photo" to select an existing image from your gallery</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• The AI will extract product name, quantity, price, dealer, and date</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Review and edit the extracted data before saving</Text>
-          <Text style={[styles.privacyItem, { marginTop: 8, color: colors.text }]}>• Free users get 5 scans per month (resets monthly)</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Gold/Lifetime subscribers get unlimited scans</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Tap "Upload Photo" to select an existing image</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• The AI extracts product name, quantity, price, dealer, and date</Text>
+          <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', padding: 10, borderRadius: 8, marginTop: 8 }}>
+            <Text style={{ color: colors.gold, fontSize: 13, fontWeight: '600' }}>💡 Tip: Digital screenshots of online receipts work best!</Text>
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Clear text and good lighting improve accuracy</Text>
+          </View>
+          <Text style={[styles.privacyItem, { marginTop: 8, color: colors.text }]}>• Free users: 5 scans per month</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Gold/Lifetime: Unlimited scans</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Portfolio Analytics</Text>
+            <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+              <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '600' }}>GOLD</Text>
+            </View>
+          </View>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Track your portfolio value over time with interactive charts</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• View cost basis analysis and unrealized P/L</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• See premium analysis and holdings breakdown</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Select time ranges: 1W, 1M, 3M, 6M, 1Y, or All Time</Text>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Share My Stack</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Create a beautiful image of your portfolio to share</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Tap "Share My Stack" on the Dashboard tab</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Shows total value, oz breakdown, and milestones</Text>
+          <Text style={[styles.privacyItem, { color: colors.muted, marginTop: 4 }]}>Perfect for sharing with fellow stackers!</Text>
+        </View>
+
+        {Platform.OS === 'ios' && (
+          <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Home Screen Widgets</Text>
+            <Text style={[styles.privacyItem, { color: colors.text }]}>• Add widgets to see your stack at a glance</Text>
+            <Text style={[styles.privacyItem, { color: colors.text }]}>• Long-press your home screen → tap "+"</Text>
+            <Text style={[styles.privacyItem, { color: colors.text }]}>• Search for "Stack Tracker Pro"</Text>
+            <Text style={[styles.privacyItem, { color: colors.text }]}>• Choose small, medium, or large widget size</Text>
+          </View>
+        )}
+
+        <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Backup & Restore</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Your data is stored locally on your device only - we can't access it</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use "Backup" to save your portfolio to iCloud Drive, Google Drive, or any cloud storage</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use "Restore" to load a backup onto this device or a new device</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Your data is stored locally on your device only</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use "Backup" to save to iCloud Drive, Google Drive, etc.</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use "Restore" to load a backup on any device</Text>
           <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', padding: 10, borderRadius: 8, marginTop: 8 }}>
             <Text style={{ color: colors.gold, fontSize: 13, fontWeight: '600' }}>⚠️ IMPORTANT: Backup regularly to avoid data loss!</Text>
           </View>
@@ -5473,7 +5626,7 @@ function AppContent() {
                   <Text style={{ color: colors.gold, fontSize: 10, fontWeight: '600' }}>GOLD</Text>
                 </View>
               </View>
-              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.text }]}>Automatically sync holdings across all your Apple devices</Text>
+              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.text }]}>Automatically sync across all your Apple devices</Text>
               <Text style={[styles.privacyItem, { marginTop: 12, color: colors.text }]}>• Manual Backup/Restore (all users)</Text>
               <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.muted, fontSize: 12 }]}>Export/import for cross-platform or offline backup</Text>
             </>
@@ -5489,14 +5642,14 @@ function AppContent() {
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Export CSV</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Export your entire portfolio as a CSV spreadsheet</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Use for your own records, tax preparation, or importing to other tools</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Export your portfolio as a CSV spreadsheet</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Great for records, tax prep, or other tools</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Support</Text>
           <Text style={[styles.privacyItem, { color: colors.text }]}>• Need help? Email stacktrackerpro@gmail.com</Text>
-          <Text style={[styles.privacyItem, { marginTop: 4, color: colors.muted, fontSize: 12 }]}>Include your Support ID (found in Settings → Advanced) for faster assistance</Text>
+          <Text style={[styles.privacyItem, { marginTop: 4, color: colors.muted, fontSize: 12 }]}>Include your Support ID (Settings → Advanced) for faster help</Text>
         </View>
       </ModalWrapper>
 
