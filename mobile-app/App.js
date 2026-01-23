@@ -4146,7 +4146,7 @@ function AppContent() {
             {/* Analytics Content - Blurred for non-Gold users */}
             <View style={{ position: 'relative' }}>
               {/* Content with blur effect for non-Gold */}
-              <View style={{ opacity: hasGoldAccess ? 1 : 0.25 }} pointerEvents={hasGoldAccess ? 'auto' : 'none'}>
+              <View style={{ opacity: hasGoldAccess ? 1 : 0.7 }} pointerEvents={hasGoldAccess ? 'auto' : 'none'}>
               <>
                 {/* Time Range Selector */}
                 <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -4297,7 +4297,7 @@ function AppContent() {
                 </View>
 
                 {/* Cost Basis Analysis */}
-                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, position: 'relative', overflow: 'hidden' }]}>
                   <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Cost Basis Analysis</Text>
 
                   {/* Gold Analysis */}
@@ -4377,10 +4377,26 @@ function AppContent() {
                       Add holdings to see cost analysis
                     </Text>
                   )}
+
+                  {/* Heavy frosted glass overlay for non-Gold users */}
+                  {!hasGoldAccess && (
+                    <View style={{
+                      position: 'absolute',
+                      top: 40,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: isDarkMode ? 'rgba(24, 24, 27, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}>
+                      <Text style={{ color: colors.gold, fontSize: 20 }}>🔒</Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Premium Analysis */}
-                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, position: 'relative', overflow: 'hidden' }]}>
                   <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Premium Analysis</Text>
 
                   {(() => {
@@ -4441,6 +4457,22 @@ function AppContent() {
                       </>
                     );
                   })()}
+
+                  {/* Heavy frosted glass overlay for non-Gold users */}
+                  {!hasGoldAccess && (
+                    <View style={{
+                      position: 'absolute',
+                      top: 40,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: isDarkMode ? 'rgba(24, 24, 27, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}>
+                      <Text style={{ color: colors.gold, fontSize: 20 }}>🔒</Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Purchase Stats */}
