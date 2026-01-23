@@ -584,6 +584,17 @@ function AppContent() {
   // Font size multiplier for accessibility
   const fontScale = largeText ? 1.25 : 1;
 
+  // Scaled font sizes for accessibility - apply to key text elements
+  const scaledFonts = {
+    huge: Math.round(32 * fontScale),      // Main portfolio value
+    xlarge: Math.round(24 * fontScale),    // Spot prices, section values
+    large: Math.round(18 * fontScale),     // Card titles, headers
+    medium: Math.round(16 * fontScale),    // Button text, important labels
+    normal: Math.round(14 * fontScale),    // Body text
+    small: Math.round(12 * fontScale),     // Secondary text, descriptions
+    tiny: Math.round(10 * fontScale),      // Timestamps, hints
+  };
+
   // Core State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -3751,34 +3762,34 @@ function AppContent() {
           <>
             {/* Portfolio Value */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>💰 Portfolio Value</Text>
-              <Text style={{ color: colors.text, fontSize: 36, fontWeight: '700', marginBottom: 4 }}>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large }]}>💰 Portfolio Value</Text>
+              <Text style={{ color: colors.text, fontSize: Math.round(36 * fontScale), fontWeight: '700', marginBottom: 4 }}>
                 ${totalMeltValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </Text>
-              <Text style={{ color: totalGainLoss >= 0 ? colors.success : colors.error, fontSize: 16 }}>
+              <Text style={{ color: totalGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.medium }}>
                 {totalGainLoss >= 0 ? '▲' : '▼'} ${Math.abs(totalGainLoss).toLocaleString(undefined, { minimumFractionDigits: 2 })} ({totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(1)}%)
               </Text>
             </View>
 
             {/* Today's Change */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>📅 Today's Change</Text>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large }]}>📅 Today's Change</Text>
               {showDailyChange ? (
                 <>
-                  <Text style={{ color: isDailyChangePositive ? colors.success : colors.error, fontSize: 32, fontWeight: '700', marginBottom: 4 }}>
+                  <Text style={{ color: isDailyChangePositive ? colors.success : colors.error, fontSize: scaledFonts.huge, fontWeight: '700', marginBottom: 4 }}>
                     {isDailyChangePositive ? '+' : ''}{dailyChange >= 0 ? '' : '-'}${Math.abs(dailyChange).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </Text>
-                  <Text style={{ color: isDailyChangePositive ? colors.success : colors.error, fontSize: 16 }}>
+                  <Text style={{ color: isDailyChangePositive ? colors.success : colors.error, fontSize: scaledFonts.medium }}>
                     {isDailyChangePositive ? '▲' : '▼'} {isDailyChangePositive ? '+' : ''}{dailyChangePct.toFixed(2)}%
                   </Text>
-                  <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8 }}>
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 8 }}>
                     Baseline: ${midnightBaseline.toLocaleString(undefined, { minimumFractionDigits: 2 })} (@ Ag ${midnightSnapshot?.silverSpot}, Au ${midnightSnapshot?.goldSpot})
                   </Text>
                 </>
               ) : (
                 <View style={{ paddingVertical: 12 }}>
-                  <Text style={{ color: colors.muted, fontSize: 24, textAlign: 'center' }}>—</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.xlarge, textAlign: 'center' }}>—</Text>
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.small, textAlign: 'center', marginTop: 4 }}>
                     {!spotPricesLive ? 'Waiting for live prices...' :
                      !midnightSnapshot ? 'No baseline yet. Check back tomorrow!' :
                      'No data yet'}
@@ -3865,16 +3876,16 @@ function AppContent() {
 
             {/* Live Spot Prices */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>💹 Live Spot Prices</Text>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large, marginBottom: 12 }]}>💹 Live Spot Prices</Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1, backgroundColor: `${colors.silver}22`, padding: 16, borderRadius: 12 }}>
-                  <Text style={{ color: colors.silver, fontSize: 12 }}>🥈 Silver</Text>
-                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(silverSpot)}</Text>
+                  <Text style={{ color: colors.silver, fontSize: scaledFonts.small }}>🥈 Silver</Text>
+                  <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }}>${formatCurrency(silverSpot)}</Text>
                   {spotChange.silver.percent != null && spotChange.silver.amount != null ? (
                     <TouchableOpacity onPress={toggleSpotChangeDisplayMode} activeOpacity={0.7}>
                       <Text style={{
                         color: spotChange.silver.amount >= 0 ? '#22C55E' : '#EF4444',
-                        fontSize: 13,
+                        fontSize: scaledFonts.small,
                         fontWeight: '600',
                         marginTop: 4
                       }}>
@@ -3885,17 +3896,17 @@ function AppContent() {
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Change: --</Text>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>Change: --</Text>
                   )}
                 </View>
                 <View style={{ flex: 1, backgroundColor: `${colors.gold}22`, padding: 16, borderRadius: 12 }}>
-                  <Text style={{ color: colors.gold, fontSize: 12 }}>🥇 Gold</Text>
-                  <Text style={{ color: colors.text, fontSize: 24, fontWeight: '700' }}>${formatCurrency(goldSpot)}</Text>
+                  <Text style={{ color: colors.gold, fontSize: scaledFonts.small }}>🥇 Gold</Text>
+                  <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }}>${formatCurrency(goldSpot)}</Text>
                   {spotChange.gold.percent != null && spotChange.gold.amount != null ? (
                     <TouchableOpacity onPress={toggleSpotChangeDisplayMode} activeOpacity={0.7}>
                       <Text style={{
                         color: spotChange.gold.amount >= 0 ? '#22C55E' : '#EF4444',
-                        fontSize: 13,
+                        fontSize: scaledFonts.small,
                         fontWeight: '600',
                         marginTop: 4
                       }}>
@@ -3906,7 +3917,7 @@ function AppContent() {
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>Change: --</Text>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>Change: --</Text>
                   )}
                 </View>
               </View>
@@ -3919,6 +3930,29 @@ function AppContent() {
                 </Text>
               </View>
             </View>
+
+            {/* Share My Stack - Quick Access */}
+            {(silverItems.length > 0 || goldItems.length > 0) && (
+              <TouchableOpacity
+                style={[styles.card, {
+                  backgroundColor: colors.cardBg,
+                  borderColor: colors.gold,
+                  borderWidth: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 14,
+                  gap: 8,
+                }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowSharePreview(true);
+                }}
+              >
+                <Text style={{ fontSize: scaledFonts.medium }}>📸</Text>
+                <Text style={{ color: colors.gold, fontSize: scaledFonts.normal, fontWeight: '600' }}>Share My Stack</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
 
