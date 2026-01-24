@@ -829,6 +829,20 @@ function AppContent() {
     return value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
+  // Helper function to format ounces with smart decimals
+  // Shows commas for thousands, removes trailing zeros
+  // "12" not "12.000", "2,297" not "2297.00", but "12.5" or "2,297.25" if meaningful
+  const formatOunces = (value, maxDecimals = 2) => {
+    // Round to max decimals first
+    const rounded = Math.round(value * Math.pow(10, maxDecimals)) / Math.pow(10, maxDecimals);
+    // Check if it's a whole number
+    if (rounded === Math.floor(rounded)) {
+      return rounded.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+    // Otherwise, show decimals but strip trailing zeros
+    return rounded.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: maxDecimals });
+  };
+
   // Helper function to calculate premium percentage
   const calculatePremiumPercent = (premium, unitPrice) => {
     if (unitPrice <= 0) return 0;
@@ -6913,7 +6927,7 @@ function AppContent() {
                 }}>
                   <Text style={{ fontSize: 20, marginBottom: 4 }}>🥇</Text>
                   <Text style={{ color: '#fbbf24', fontWeight: '600', marginBottom: 8 }}>Gold</Text>
-                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{totalGoldOzt.toFixed(3)} oz</Text>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{formatOunces(totalGoldOzt, 3)} oz</Text>
                   <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>${formatCurrency(totalGoldOzt * goldSpot, 0)}</Text>
                 </View>
 
@@ -6928,7 +6942,7 @@ function AppContent() {
                 }}>
                   <Text style={{ fontSize: 20, marginBottom: 4 }}>🥈</Text>
                   <Text style={{ color: '#9ca3af', fontWeight: '600', marginBottom: 8 }}>Silver</Text>
-                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{totalSilverOzt.toFixed(2)} oz</Text>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{formatOunces(totalSilverOzt, 2)} oz</Text>
                   <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>${formatCurrency(totalSilverOzt * silverSpot, 0)}</Text>
                 </View>
               </View>
@@ -6942,6 +6956,7 @@ function AppContent() {
               {/* Watermark */}
               <View style={{ alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
                 <Text style={{ color: '#52525b', fontSize: 11 }}>Tracked with Stack Tracker Gold</Text>
+                <Text style={{ color: '#3f3f46', fontSize: 10, marginTop: 2 }}>www.stacktrackergold.com</Text>
               </View>
             </View>
           </ViewShot>
