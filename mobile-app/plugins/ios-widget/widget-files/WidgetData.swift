@@ -3,17 +3,17 @@ import Foundation
 /// Data structure for widget display
 /// This matches the JSON structure sent from React Native
 struct WidgetData: Codable {
-    let portfolioValue: Double
-    let dailyChangeAmount: Double
-    let dailyChangePercent: Double
-    let goldSpot: Double
-    let silverSpot: Double
-    let goldChangeAmount: Double
-    let goldChangePercent: Double
-    let silverChangeAmount: Double
-    let silverChangePercent: Double
-    let lastUpdated: Date
-    let hasSubscription: Bool
+    var portfolioValue: Double
+    var dailyChangeAmount: Double
+    var dailyChangePercent: Double
+    var goldSpot: Double
+    var silverSpot: Double
+    var goldChangeAmount: Double
+    var goldChangePercent: Double
+    var silverChangeAmount: Double
+    var silverChangePercent: Double
+    var lastUpdated: Date
+    var hasSubscription: Bool
 
     enum CodingKeys: String, CodingKey {
         case portfolioValue

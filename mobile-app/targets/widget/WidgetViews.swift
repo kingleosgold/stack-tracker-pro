@@ -24,32 +24,32 @@ struct SmallWidgetView: View {
     let data: WidgetData
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             if data.hasSubscription {
                 // Portfolio Label
                 Text("Portfolio")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(Color(hex: "#71717a"))
 
                 // Portfolio Value - LARGE and prominent
                 Text(formatCurrency(data.portfolioValue))
-                    .font(.system(size: 36, weight: .bold))
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundColor(.white)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
 
                 // Daily Change
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Text(data.dailyChangeAmount >= 0 ? "▲" : "▼")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(portfolioChangeColor)
 
                     Text(formatChange(data.dailyChangeAmount))
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(portfolioChangeColor)
 
                     Text("(\(formatPercent(data.dailyChangePercent)))")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundColor(portfolioChangeColor)
                 }
 
@@ -57,12 +57,13 @@ struct SmallWidgetView: View {
 
                 // Branding and timestamp at bottom
                 HStack {
-                    Text("Stack Tracker")
-                        .font(.system(size: 8, weight: .medium))
+                    Text("Stack Tracker Gold")
+                        .font(.system(size: 7, weight: .medium))
                         .foregroundColor(Color(hex: "#fbbf24").opacity(0.7))
+                        .lineLimit(1)
                     Spacer()
                     Text(timeAgoString)
-                        .font(.system(size: 8))
+                        .font(.system(size: 7))
                         .foregroundColor(Color(hex: "#71717a"))
                 }
             } else {
@@ -115,7 +116,7 @@ struct MediumWidgetView: View {
     var body: some View {
         Group {
             if data.hasSubscription {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 0) {
                     // Portfolio section at top
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 0) {
@@ -123,7 +124,7 @@ struct MediumWidgetView: View {
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(Color(hex: "#71717a"))
                             Text(formatCurrency(data.portfolioValue))
-                                .font(.system(size: 48, weight: .bold))
+                                .font(.system(size: 52, weight: .bold))
                                 .foregroundColor(.white)
                                 .minimumScaleFactor(0.5)
                                 .lineLimit(1)
@@ -148,44 +149,50 @@ struct MediumWidgetView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(portfolioChangeColor)
                         }
+                        .padding(.top, 2)
                     }
 
                     Spacer()
+                        .frame(minHeight: 8, maxHeight: 16)
 
-                    // Spot Prices Row - stacked layout
-                    HStack(alignment: .top, spacing: 32) {
+                    // Spot Prices Row - LARGER with better spacing
+                    HStack(alignment: .top, spacing: 40) {
                         // Gold
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("Gold")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(Color(hex: "#fbbf24"))
                             Text(formatSpotPrice(data.goldSpot))
-                                .font(.system(size: 16, weight: .bold))
+                                .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(.white)
-                            HStack(spacing: 2) {
+                                .minimumScaleFactor(0.8)
+                                .lineLimit(1)
+                            HStack(spacing: 3) {
                                 Text(data.goldChangeAmount >= 0 ? "▲" : "▼")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(.system(size: 10, weight: .bold))
                                     .foregroundColor(goldChangeColor)
                                 Text(formatSmallChange(data.goldChangeAmount))
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(goldChangeColor)
                             }
                         }
 
                         // Silver
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("Silver")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(Color(hex: "#9ca3af"))
                             Text(formatSpotPrice(data.silverSpot))
-                                .font(.system(size: 16, weight: .bold))
+                                .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(.white)
-                            HStack(spacing: 2) {
+                                .minimumScaleFactor(0.8)
+                                .lineLimit(1)
+                            HStack(spacing: 3) {
                                 Text(data.silverChangeAmount >= 0 ? "▲" : "▼")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(.system(size: 10, weight: .bold))
                                     .foregroundColor(silverChangeColor)
                                 Text(formatSmallChange(data.silverChangeAmount))
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(silverChangeColor)
                             }
                         }
@@ -193,9 +200,12 @@ struct MediumWidgetView: View {
                         Spacer()
                     }
 
+                    Spacer()
+                        .frame(minHeight: 4, maxHeight: 8)
+
                     // Branding and timestamp at bottom
                     HStack {
-                        Text("Stack Tracker")
+                        Text("Stack Tracker Gold")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(Color(hex: "#fbbf24").opacity(0.7))
                         Spacer()
