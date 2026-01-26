@@ -45,113 +45,129 @@ struct Provider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetEntry>) -> Void) {
-        // Fetch fresh prices from our backend cache
-        fetchFromBackendCache { freshPrices in
+        print("🔧 [Widget] getTimeline called")
+
+        // Use a background queue with async/await pattern for network request
+        Task {
             let currentDate = Date()
 
-            // Load existing widget data from App Group
+            // Load existing widget data from App Group as fallback
             var data = loadWidgetData()
+            print("🔧 [Widget] Loaded App Group data, portfolioValue: \(data.portfolioValue)")
 
-            // If we got fresh prices, update the data
-            if let prices = freshPrices {
-                data.goldSpot = prices.gold
-                data.silverSpot = prices.silver
-                data.goldChangeAmount = prices.goldChange
-                data.goldChangePercent = prices.goldChangePercent
-                data.silverChangeAmount = prices.silverChange
-                data.silverChangePercent = prices.silverChangePercent
+            // Fetch fresh prices from backend cache (with timeout)
+            if let freshPrices = await fetchFromBackendCacheAsync() {
+                print("✅ [Widget] Got fresh prices - Gold: $\(freshPrices.gold), Silver: $\(freshPrices.silver)")
+
+                data.goldSpot = freshPrices.gold
+                data.silverSpot = freshPrices.silver
+                data.goldChangeAmount = freshPrices.goldChange
+                data.goldChangePercent = freshPrices.goldChangePercent
+                data.silverChangeAmount = freshPrices.silverChange
+                data.silverChangePercent = freshPrices.silverChangePercent
                 data.lastUpdated = currentDate
 
-                // Recalculate portfolio value if we have holdings data
-                // (portfolioValue uses oz from App Group, just needs fresh spot prices)
-
-                // Save updated data back to App Group so app benefits too
+                // Save updated data to App Group so app benefits too
                 saveWidgetData(data)
+                print("✅ [Widget] Saved fresh data to App Group")
+            } else {
+                print("⚠️ [Widget] Using cached App Group data (fetch failed or timed out)")
             }
 
             // Create multiple timeline entries for the next 2 hours (every 15 min = 8 entries)
-            // This ensures the widget updates visually even if iOS delays the refresh
             var entries: [WidgetEntry] = []
 
             for minuteOffset in stride(from: 0, to: 120, by: 15) {
                 let entryDate = Calendar.current.date(byAdding: .minute, value: minuteOffset, to: currentDate)!
-                // Each entry uses the same data but with updated lastUpdated for display
                 var entryData = data
-                entryData.lastUpdated = currentDate // Keep original fetch time for "X min ago"
+                entryData.lastUpdated = currentDate
                 entries.append(WidgetEntry(date: entryDate, data: entryData))
             }
 
+            print("🔧 [Widget] Created \(entries.count) timeline entries")
+
             // After all entries expire, request a new timeline (triggers new fetch)
             let timeline = Timeline(entries: entries, policy: .atEnd)
-            completion(timeline)
+
+            // Complete on main thread
+            DispatchQueue.main.async {
+                completion(timeline)
+                print("✅ [Widget] Timeline completed")
+            }
         }
     }
 
-    /// Fetch spot prices from our backend cache
-    /// This hits our Railway server's cached prices, NOT MetalpriceAPI directly
-    private func fetchFromBackendCache(completion: @escaping (SpotPrices?) -> Void) {
+    /// Fetch spot prices from backend cache using async/await with timeout
+    private func fetchFromBackendCacheAsync() async -> SpotPrices? {
         guard let url = URL(string: backendCacheUrl) else {
-            completion(nil)
-            return
+            print("❌ [Widget] Invalid URL")
+            return nil
         }
 
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error = error {
-                print("❌ [Widget] Network error: \(error.localizedDescription)")
-                completion(nil)
-                return
-            }
+        print("🔧 [Widget] Fetching from: \(backendCacheUrl)")
 
-            guard let data = data else {
-                completion(nil)
-                return
-            }
+        // Create URLSession with timeout
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10 // 10 second timeout
+        config.timeoutIntervalForResource = 15
+        let session = URLSession(configuration: config)
 
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let success = json["success"] as? Bool, success,
-                   let gold = json["gold"] as? Double,
-                   let silver = json["silver"] as? Double {
+        do {
+            let (data, response) = try await session.data(from: url)
 
-                    var goldChange: Double = 0
-                    var goldChangePercent: Double = 0
-                    var silverChange: Double = 0
-                    var silverChangePercent: Double = 0
-
-                    if let change = json["change"] as? [String: Any] {
-                        if let goldData = change["gold"] as? [String: Any] {
-                            goldChange = goldData["amount"] as? Double ?? 0
-                            goldChangePercent = goldData["percent"] as? Double ?? 0
-                        }
-                        if let silverData = change["silver"] as? [String: Any] {
-                            silverChange = silverData["amount"] as? Double ?? 0
-                            silverChangePercent = silverData["percent"] as? Double ?? 0
-                        }
-                    }
-
-                    let prices = SpotPrices(
-                        gold: gold,
-                        silver: silver,
-                        goldChange: goldChange,
-                        goldChangePercent: goldChangePercent,
-                        silverChange: silverChange,
-                        silverChangePercent: silverChangePercent
-                    )
-                    completion(prices)
-                } else {
-                    completion(nil)
+            // Check HTTP status
+            if let httpResponse = response as? HTTPURLResponse {
+                print("🔧 [Widget] HTTP status: \(httpResponse.statusCode)")
+                guard httpResponse.statusCode == 200 else {
+                    print("❌ [Widget] Bad HTTP status: \(httpResponse.statusCode)")
+                    return nil
                 }
-            } catch {
-                print("❌ [Widget] JSON parsing error: \(error.localizedDescription)")
-                completion(nil)
             }
+
+            // Parse JSON
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let success = json["success"] as? Bool, success,
+                  let gold = json["gold"] as? Double,
+                  let silver = json["silver"] as? Double else {
+                print("❌ [Widget] Failed to parse JSON or success=false")
+                return nil
+            }
+
+            var goldChange: Double = 0
+            var goldChangePercent: Double = 0
+            var silverChange: Double = 0
+            var silverChangePercent: Double = 0
+
+            if let change = json["change"] as? [String: Any] {
+                if let goldData = change["gold"] as? [String: Any] {
+                    goldChange = goldData["amount"] as? Double ?? 0
+                    goldChangePercent = goldData["percent"] as? Double ?? 0
+                }
+                if let silverData = change["silver"] as? [String: Any] {
+                    silverChange = silverData["amount"] as? Double ?? 0
+                    silverChangePercent = silverData["percent"] as? Double ?? 0
+                }
+            }
+
+            return SpotPrices(
+                gold: gold,
+                silver: silver,
+                goldChange: goldChange,
+                goldChangePercent: goldChangePercent,
+                silverChange: silverChange,
+                silverChangePercent: silverChangePercent
+            )
+
+        } catch {
+            print("❌ [Widget] Fetch error: \(error.localizedDescription)")
+            return nil
         }
-        task.resume()
     }
 
     /// Save widget data to App Group storage
     private func saveWidgetData(_ data: WidgetData) {
         guard let userDefaults = UserDefaults(suiteName: appGroupId) else {
+            print("❌ [Widget] Failed to access App Group for save")
             return
         }
 
@@ -161,6 +177,7 @@ struct Provider: TimelineProvider {
             let jsonData = try encoder.encode(data)
             if let jsonString = String(data: jsonData, encoding: .utf8) {
                 userDefaults.set(jsonString, forKey: "widgetData")
+                userDefaults.synchronize() // Force immediate write
             }
         } catch {
             print("❌ [Widget] Failed to save data: \(error)")
@@ -170,10 +187,12 @@ struct Provider: TimelineProvider {
     /// Load widget data from shared App Group storage
     private func loadWidgetData() -> WidgetData {
         guard let userDefaults = UserDefaults(suiteName: appGroupId) else {
+            print("❌ [Widget] Failed to access App Group")
             return WidgetData.placeholder
         }
 
         guard let jsonString = userDefaults.string(forKey: "widgetData") else {
+            print("❌ [Widget] No data in App Group")
             return WidgetData.placeholder
         }
 
@@ -187,6 +206,7 @@ struct Provider: TimelineProvider {
             let data = try decoder.decode(WidgetData.self, from: jsonData)
             return data
         } catch {
+            print("❌ [Widget] Failed to decode: \(error)")
             return WidgetData.placeholder
         }
     }
