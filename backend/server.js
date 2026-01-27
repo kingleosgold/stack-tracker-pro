@@ -64,7 +64,7 @@ const anthropic = new Anthropic({
 // ============================================
 
 let spotPriceCache = {
-  prices: { gold: 2650, silver: 31, platinum: 980, palladium: 1050 },
+  prices: { gold: 5100, silver: 107, platinum: 2700, palladium: 2000 },
   lastUpdated: null,
   change: { gold: {}, silver: {}, source: 'unavailable' },
 };
@@ -140,8 +140,8 @@ async function fetchLiveSpotPrices() {
       prices: {
         gold: fetchedPrices.gold,
         silver: fetchedPrices.silver,
-        platinum: fetchedPrices.platinum || 950,
-        palladium: fetchedPrices.palladium || 960,
+        platinum: fetchedPrices.platinum || 2700,
+        palladium: fetchedPrices.palladium || 2000,
       },
       lastUpdated: new Date(),
       source: fetchedPrices.source,
@@ -180,7 +180,7 @@ async function fetchLiveSpotPrices() {
 
     // Final fallback to static estimates
     console.log('⚠️  Using hardcoded fallback prices (no cache available)');
-    spotPriceCache.prices = { gold: 2650, silver: 31, platinum: 950, palladium: 960 };
+    spotPriceCache.prices = { gold: 5100, silver: 107, platinum: 2700, palladium: 2000 };
     spotPriceCache.lastUpdated = new Date();
     spotPriceCache.source = 'static-fallback';
     return spotPriceCache.prices;

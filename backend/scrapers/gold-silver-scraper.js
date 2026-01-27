@@ -2,9 +2,10 @@
  * Stack Tracker Pro - Gold & Silver Price Fetcher
  *
  * Priority order:
- * 1. MetalPriceAPI (Basic plan: 10,000 requests/month)
- * 2. GoldAPI.io (Fallback if MetalPriceAPI fails)
- * 3. Static prices (Final fallback)
+ * 1. MetalPriceAPI (Basic plan: 10,000 requests/month) - live
+ * 2. GoldAPI.io (Fallback if MetalPriceAPI fails) - live
+ * 3. latest-prices.json (last cached successful fetch from APIs)
+ * 4. Static hardcoded prices (absolute last resort)
  */
 
 const axios = require('axios');
@@ -19,8 +20,13 @@ let previousDayPrices = {
   date: null, // YYYY-MM-DD format
 };
 
+// Store last successful API prices (for fallback before hardcoded values)
+let latestCachedPrices = null;
+
 // Load previous day prices from file on startup
 const PREV_PRICES_FILE = path.join(__dirname, '..', 'data', 'previous-day-prices.json');
+const LATEST_PRICES_FILE = path.join(__dirname, '..', 'data', 'latest-prices.json');
+
 try {
   if (fs.existsSync(PREV_PRICES_FILE)) {
     const saved = JSON.parse(fs.readFileSync(PREV_PRICES_FILE, 'utf8'));
@@ -29,6 +35,16 @@ try {
   }
 } catch (err) {
   console.log('⚠️  Could not load previous day prices:', err.message);
+}
+
+// Load latest cached prices on startup
+try {
+  if (fs.existsSync(LATEST_PRICES_FILE)) {
+    latestCachedPrices = JSON.parse(fs.readFileSync(LATEST_PRICES_FILE, 'utf8'));
+    console.log('💾 Loaded latest cached prices:', latestCachedPrices);
+  }
+} catch (err) {
+  console.log('⚠️  Could not load latest cached prices:', err.message);
 }
 
 /**
@@ -68,6 +84,45 @@ function savePreviousDayPrices(gold, silver) {
   } catch (err) {
     console.log('⚠️  Could not save prices:', err.message);
   }
+}
+
+/**
+ * Save the latest successful API prices to file for use as fallback
+ * This is called after every successful MetalPriceAPI or GoldAPI fetch
+ */
+function saveLatestPrices(prices) {
+  if (!prices.gold || !prices.silver) {
+    return;
+  }
+
+  const dataToSave = {
+    gold: prices.gold,
+    silver: prices.silver,
+    platinum: prices.platinum,
+    palladium: prices.palladium,
+    timestamp: prices.timestamp,
+    source: prices.source,
+    savedAt: new Date().toISOString(),
+  };
+
+  try {
+    const dataDir = path.join(__dirname, '..', 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    fs.writeFileSync(LATEST_PRICES_FILE, JSON.stringify(dataToSave, null, 2));
+    latestCachedPrices = dataToSave;
+    console.log('💾 Saved latest prices to cache:', { gold: dataToSave.gold, silver: dataToSave.silver, source: dataToSave.source });
+  } catch (err) {
+    console.log('⚠️  Could not save latest prices:', err.message);
+  }
+}
+
+/**
+ * Get latest cached prices from file (used as fallback before hardcoded)
+ */
+function getLatestCachedPrices() {
+  return latestCachedPrices;
 }
 
 /**
@@ -143,14 +198,14 @@ async function scrapeGoldSilverPrices() {
       // Invert rates to get price per oz
       goldPrice = data.rates.XAU ? Math.round((1 / data.rates.XAU) * 100) / 100 : null;
       silverPrice = data.rates.XAG ? Math.round((1 / data.rates.XAG) * 100) / 100 : null;
-      platinumPrice = data.rates.XPT ? Math.round((1 / data.rates.XPT) * 100) / 100 : 950;
-      palladiumPrice = data.rates.XPD ? Math.round((1 / data.rates.XPD) * 100) / 100 : 960;
+      platinumPrice = data.rates.XPT ? Math.round((1 / data.rates.XPT) * 100) / 100 : 2700;
+      palladiumPrice = data.rates.XPD ? Math.round((1 / data.rates.XPD) * 100) / 100 : 2000;
     } else {
       // Direct format (if available)
       goldPrice = data.gold || data.XAU || data.xau;
       silverPrice = data.silver || data.XAG || data.xag;
-      platinumPrice = data.platinum || data.XPT || data.xpt || 950;
-      palladiumPrice = data.palladium || data.XPD || data.xpd || 960;
+      platinumPrice = data.platinum || data.XPT || data.xpt || 2700;
+      palladiumPrice = data.palladium || data.XPD || data.xpd || 2000;
     }
 
     if (goldPrice && silverPrice) {
@@ -199,6 +254,9 @@ async function scrapeGoldSilverPrices() {
       console.log(`💰 Gold Spot: $${result.gold}/oz (MetalPriceAPI)`);
       console.log(`🥈 Silver Spot: $${result.silver}/oz (MetalPriceAPI)`);
       console.log('✅ Successfully fetched prices via MetalPriceAPI (primary source)');
+
+      // Save to cache for fallback use
+      saveLatestPrices(result);
 
       return result;
     }
@@ -270,8 +328,8 @@ async function scrapeGoldSilverPrices() {
       const result = {
         gold: Math.round(goldRes.data.price * 100) / 100,
         silver: Math.round(silverRes.data.price * 100) / 100,
-        platinum: 950, // Not available in free/paid tier
-        palladium: 960, // Not available in free/paid tier
+        platinum: 2700, // Not available in free/paid tier
+        palladium: 2000, // Not available in free/paid tier
         timestamp: new Date().toISOString(),
         source: 'goldapi-io',
         change: changeData,
@@ -281,20 +339,39 @@ async function scrapeGoldSilverPrices() {
       console.log(`🥈 Silver Spot: $${result.silver}/oz (GoldAPI.io)`);
       console.log('✅ Successfully fetched prices via GoldAPI.io (fallback)');
 
+      // Save to cache for fallback use
+      saveLatestPrices(result);
+
       return result;
     }
   } catch (goldapiError) {
     console.warn('⚠️  GoldAPI.io failed:', goldapiError.message);
-    console.log('   Falling back to static prices...');
+    console.log('   Falling back to cached/static prices...');
   }
 
-  // PRIORITY 3: Static fallback prices (final resort)
-  console.log('⚠️  All APIs failed - using static fallback prices');
+  // PRIORITY 3: Check for cached prices from last successful API fetch
+  const cached = getLatestCachedPrices();
+  if (cached && cached.gold && cached.silver) {
+    console.log('📦 Using cached prices from last successful fetch');
+    console.log(`   Cached at: ${cached.savedAt} (source: ${cached.source})`);
+    return {
+      gold: cached.gold,
+      silver: cached.silver,
+      platinum: cached.platinum || 2700,
+      palladium: cached.palladium || 2000,
+      timestamp: new Date().toISOString(),
+      source: 'cached-fallback',
+      change: { gold: {}, silver: {}, source: 'unavailable' },
+    };
+  }
+
+  // PRIORITY 4: Static fallback prices (absolute last resort)
+  console.log('⚠️  All APIs failed and no cache available - using hardcoded fallback prices');
   return {
-    gold: 2650,
-    silver: 31,
-    platinum: 950,
-    palladium: 960,
+    gold: 5100,
+    silver: 107,
+    platinum: 2700,
+    palladium: 2000,
     timestamp: new Date().toISOString(),
     source: 'static-fallback',
     change: { gold: {}, silver: {}, source: 'unavailable' },
