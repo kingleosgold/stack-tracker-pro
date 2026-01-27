@@ -34,6 +34,7 @@ import Tutorial from './src/components/Tutorial';
 import ViewShot from 'react-native-view-shot';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/screens/AuthScreen';
+import AccountScreen from './src/screens/AccountScreen';
 import { AppleLogo, GoogleLogo, ProfileIcon } from './src/components/icons';
 
 // Configure notifications behavior
@@ -588,6 +589,7 @@ function AppContent() {
   const { user: supabaseUser, session, loading: authLoading, signOut: supabaseSignOut, linkedProviders, linkWithGoogle, linkWithApple } = useAuth();
   const [guestMode, setGuestMode] = useState(null); // null = loading, true = guest, false = require auth
   const [showAuthScreen, setShowAuthScreen] = useState(false);
+  const [showAccountScreen, setShowAccountScreen] = useState(false);
 
   // Theme
   const systemColorScheme = useColorScheme();
@@ -4044,7 +4046,7 @@ function AppContent() {
                 borderWidth: 1,
                 borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
               }}
-              onPress={() => setTab('settings')}
+              onPress={() => setShowAccountScreen(true)}
             >
               <ProfileIcon size={20} color={colors.gold} />
             </TouchableOpacity>
@@ -5236,10 +5238,9 @@ function AppContent() {
               <SectionHeader title="Account" />
               <View style={{ borderRadius: 10, overflow: 'hidden' }}>
                 {supabaseUser ? (
-                  // Signed in - show email, linked providers, and sign out
-                  <>
-                    {/* Email/Account Info */}
-                    <View style={{
+                  // Signed in - show manage account button
+                  <TouchableOpacity
+                    style={{
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -5247,142 +5248,23 @@ function AppContent() {
                       paddingVertical: 12,
                       paddingHorizontal: 16,
                       minHeight: 44,
-                      borderTopLeftRadius: 10,
-                      borderTopRightRadius: 10,
-                    }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ color: '#fff', fontSize: 14 }}>✓</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Signed In</Text>
-                          <Text style={{ color: colors.muted, fontSize: scaledFonts.small }} numberOfLines={1}>
-                            {supabaseUser.email}
-                          </Text>
-                        </View>
+                      borderRadius: 10,
+                    }}
+                    onPress={() => setShowAccountScreen(true)}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}>
+                        <ProfileIcon size={18} color="#18181b" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Manage Account</Text>
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.small }} numberOfLines={1}>
+                          {supabaseUser.email}
+                        </Text>
                       </View>
                     </View>
-                    <RowSeparator />
-
-                    {/* Google Provider */}
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      backgroundColor: groupBg,
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      minHeight: 44,
-                    }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: separatorColor }}>
-                          <GoogleLogo size={18} />
-                        </View>
-                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Google</Text>
-                      </View>
-                      {linkedProviders.google ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={{ color: colors.success, fontSize: scaledFonts.small }}>Linked</Text>
-                          <Text style={{ color: colors.success, fontSize: 14 }}>✓</Text>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          onPress={async () => {
-                            const { error } = await linkWithGoogle();
-                            if (error && error.message !== 'Linking cancelled') {
-                              Alert.alert('Link Failed', error.message);
-                            }
-                          }}
-                          style={{ paddingVertical: 4, paddingHorizontal: 12, backgroundColor: '#4285F4', borderRadius: 6 }}
-                        >
-                          <Text style={{ color: '#fff', fontSize: scaledFonts.small, fontWeight: '600' }}>Link</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    <RowSeparator />
-
-                    {/* Apple Provider (iOS only) */}
-                    {Platform.OS === 'ios' && (
-                      <>
-                        <View style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          backgroundColor: groupBg,
-                          paddingVertical: 12,
-                          paddingHorizontal: 16,
-                          minHeight: 44,
-                        }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: isDarkMode ? '#fff' : '#000', alignItems: 'center', justifyContent: 'center' }}>
-                              <AppleLogo size={18} color={isDarkMode ? '#000' : '#fff'} />
-                            </View>
-                            <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Apple</Text>
-                          </View>
-                          {linkedProviders.apple ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={{ color: colors.success, fontSize: scaledFonts.small }}>Linked</Text>
-                              <Text style={{ color: colors.success, fontSize: 14 }}>✓</Text>
-                            </View>
-                          ) : (
-                            <TouchableOpacity
-                              onPress={async () => {
-                                const { error } = await linkWithApple();
-                                if (error && error.message !== 'Linking cancelled') {
-                                  Alert.alert('Link Failed', error.message);
-                                }
-                              }}
-                              style={{ paddingVertical: 4, paddingHorizontal: 12, backgroundColor: isDarkMode ? '#fff' : '#000', borderRadius: 6 }}
-                            >
-                              <Text style={{ color: isDarkMode ? '#000' : '#fff', fontSize: scaledFonts.small, fontWeight: '600' }}>Link</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        <RowSeparator />
-                      </>
-                    )}
-
-                    {/* Sign Out */}
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        backgroundColor: groupBg,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        minHeight: 44,
-                        borderBottomLeftRadius: 10,
-                        borderBottomRightRadius: 10,
-                      }}
-                      onPress={() => {
-                        Alert.alert(
-                          'Sign Out',
-                          'Are you sure you want to sign out?',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            {
-                              text: 'Sign Out',
-                              style: 'destructive',
-                              onPress: async () => {
-                                await supabaseSignOut();
-                                // Keep in guest mode after sign out
-                                enableGuestMode();
-                              },
-                            },
-                          ]
-                        );
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: colors.error, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ color: '#fff', fontSize: 14 }}>↪</Text>
-                        </View>
-                        <Text style={{ color: colors.error, fontSize: scaledFonts.normal }}>Sign Out</Text>
-                      </View>
-                      <Text style={{ color: chevronColor, fontSize: 18, fontWeight: '600' }}>›</Text>
-                    </TouchableOpacity>
-                  </>
+                    <Text style={{ color: chevronColor, fontSize: 18, fontWeight: '600' }}>›</Text>
+                  </TouchableOpacity>
                 ) : (
                   // Not signed in - show sign in button
                   <TouchableOpacity
@@ -5416,9 +5298,6 @@ function AppContent() {
               </View>
               {!supabaseUser && (
                 <SectionFooter text="Your portfolio data is stored locally on this device. Sign in to enable cloud sync." />
-              )}
-              {supabaseUser && (
-                <SectionFooter text="Link additional sign-in methods to access your account from anywhere." />
               )}
 
               {/* Gold Features Section */}
@@ -6016,6 +5895,20 @@ function AppContent() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* ACCOUNT SCREEN MODAL */}
+      <Modal visible={showAccountScreen} animationType="slide" presentationStyle="pageSheet">
+        <AccountScreen
+          onClose={() => setShowAccountScreen(false)}
+          onSignOut={() => {
+            setShowAccountScreen(false);
+            setGuestMode(true);
+          }}
+          hasGold={hasGold}
+          hasLifetime={hasLifetimeAccess}
+          colors={colors}
+        />
+      </Modal>
 
       {/* ADD/EDIT MODAL - Custom with sticky save button */}
       <Modal visible={showAddModal} animationType="slide" transparent>
