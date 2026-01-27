@@ -34,7 +34,7 @@ import Tutorial from './src/components/Tutorial';
 import ViewShot from 'react-native-view-shot';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/screens/AuthScreen';
-import { AppleLogo } from './src/components/icons';
+import { AppleLogo, GoogleLogo, ProfileIcon } from './src/components/icons';
 
 // Configure notifications behavior
 Notifications.setNotificationHandler({
@@ -4046,7 +4046,7 @@ function AppContent() {
               }}
               onPress={() => setTab('settings')}
             >
-              <Text style={{ fontSize: 18 }}>👤</Text>
+              <ProfileIcon size={20} color={colors.gold} />
             </TouchableOpacity>
           ) : (
             // Not signed in - show Sign In button
@@ -5276,7 +5276,7 @@ function AppContent() {
                     }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: separatorColor }}>
-                          <Text style={{ color: '#4285F4', fontSize: 14, fontWeight: '700' }}>G</Text>
+                          <GoogleLogo size={18} />
                         </View>
                         <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Google</Text>
                       </View>
@@ -5403,7 +5403,7 @@ function AppContent() {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                       <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' }}>
-                        <Text style={{ color: '#fff', fontSize: 14 }}>👤</Text>
+                        <ProfileIcon size={18} color="#fff" />
                       </View>
                       <View>
                         <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>Sign In or Create Account</Text>
