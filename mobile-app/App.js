@@ -702,6 +702,7 @@ function AppContent() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showSpeculationModal, setShowSpeculationModal] = useState(false);
   const [showJunkCalcModal, setShowJunkCalcModal] = useState(false);
+  const [showPremiumAnalysisModal, setShowPremiumAnalysisModal] = useState(false);
   const [showPaywallModal, setShowPaywallModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showImportPreview, setShowImportPreview] = useState(false);
@@ -4718,15 +4719,6 @@ function AppContent() {
                 <Text style={[styles.statRowLabel, { fontSize: scaledFonts.small }]}>Cost Basis</Text>
                 <Text style={[styles.statRowValue, { color: colors.text, fontSize: scaledFonts.normal }]}>${totalCostBasis.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
               </View>
-              <View style={styles.statRow}>
-                <Text style={[styles.statRowLabel, { fontSize: scaledFonts.small }]}>Premiums Paid</Text>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.statRowValue, { color: colors.gold, fontSize: scaledFonts.normal }]}>${totalPremiumsPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
-                  {totalPremiumsPct > 0 && (
-                    <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny, marginTop: 2 }}>+{totalPremiumsPct.toFixed(1)}%</Text>
-                  )}
-                </View>
-              </View>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <View style={styles.statRow}>
                 <Text style={[styles.statRowLabel, { fontSize: scaledFonts.small }]}>Avg Silver Cost</Text>
@@ -5039,6 +5031,11 @@ function AppContent() {
             <TouchableOpacity style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={exportCSV}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>📤 Export CSV</Text>
               <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Download holdings spreadsheet</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPremiumAnalysisModal(true); }}>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Premium Analysis</Text>
+              <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>View premiums paid across your holdings</Text>
             </TouchableOpacity>
 
             {/* Stack Milestones - Tappable to Edit */}
@@ -5448,80 +5445,6 @@ function AppContent() {
                       Add holdings to see cost analysis
                     </Text>
                   )}
-                </View>
-
-                {/* Premium Analysis */}
-                <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Premium Analysis</Text>
-                    {!hasGoldAccess && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
-                        <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny, fontWeight: '600' }}>GOLD</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {(() => {
-                    // Calculate average premium for each metal
-                    const goldPremiums = goldItems.filter(i => i.premium && i.premium > 0);
-                    const silverPremiums = silverItems.filter(i => i.premium && i.premium > 0);
-
-                    const avgGoldPremium = goldPremiums.length > 0
-                      ? goldPremiums.reduce((sum, i) => sum + (i.premium || 0), 0) / goldPremiums.length
-                      : 0;
-                    const avgSilverPremium = silverPremiums.length > 0
-                      ? silverPremiums.reduce((sum, i) => sum + (i.premium || 0), 0) / silverPremiums.length
-                      : 0;
-
-                    // Calculate average premium percent
-                    const avgGoldPremiumPct = goldPremiums.length > 0
-                      ? goldPremiums.reduce((sum, i) => sum + calculatePremiumPercent(i.premium || 0, i.unitPrice || 0), 0) / goldPremiums.length
-                      : 0;
-                    const avgSilverPremiumPct = silverPremiums.length > 0
-                      ? silverPremiums.reduce((sum, i) => sum + calculatePremiumPercent(i.premium || 0, i.unitPrice || 0), 0) / silverPremiums.length
-                      : 0;
-
-                    // Redact values for free users
-                    const redact = !hasGoldAccess;
-
-                    return (
-                      <>
-                        {goldPremiums.length > 0 && (
-                          <View style={{ marginBottom: 16 }}>
-                            <Text style={{ color: colors.gold, fontWeight: '600', marginBottom: 8, fontSize: scaledFonts.normal }}>Gold ({redact ? '•' : goldPremiums.length} items with premium data)</Text>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg Premium/oz</Text>
-                              <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>{redact ? '$•••••' : `$${formatCurrency(avgGoldPremium)}`}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg Premium %</Text>
-                              <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>{redact ? '••••%' : `${avgGoldPremiumPct.toFixed(1)}%`}</Text>
-                            </View>
-                          </View>
-                        )}
-
-                        {silverPremiums.length > 0 && (
-                          <View>
-                            <Text style={{ color: colors.silver, fontWeight: '600', marginBottom: 8, fontSize: scaledFonts.normal }}>Silver ({redact ? '•' : silverPremiums.length} items with premium data)</Text>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                              <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg Premium/oz</Text>
-                              <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>{redact ? '$•••••' : `$${formatCurrency(avgSilverPremium)}`}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg Premium %</Text>
-                              <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>{redact ? '••••%' : `${avgSilverPremiumPct.toFixed(1)}%`}</Text>
-                            </View>
-                          </View>
-                        )}
-
-                        {goldPremiums.length === 0 && silverPremiums.length === 0 && (
-                          <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: 20, fontSize: scaledFonts.normal }}>
-                            Premium data not available. Add items with premium info to see analysis.
-                          </Text>
-                        )}
-                      </>
-                    );
-                  })()}
                 </View>
 
                 {/* Purchase Stats */}
@@ -6776,6 +6699,98 @@ function AppContent() {
         </View>
       </ModalWrapper>
 
+      {/* PREMIUM ANALYSIS MODAL */}
+      <ModalWrapper
+        visible={showPremiumAnalysisModal}
+        onClose={() => setShowPremiumAnalysisModal(false)}
+        title="Premium Analysis"
+        colors={colors}
+        isDarkMode={isDarkMode}
+      >
+        {(() => {
+          // Calculate premium per holding: unitPrice - (spotPrice * ozt)
+          // Try saved spotPrice first, then current spot as approximation
+          const calcPremium = (item, metal) => {
+            const savedPremium = parseFloat(item.premium) || 0;
+            if (savedPremium > 0.01) return savedPremium;
+            const spot = item.spotPrice || 0;
+            const liveSpot = metal === 'gold' ? goldSpot : silverSpot;
+            const spotForCalc = spot > 0 ? spot : liveSpot;
+            if (item.unitPrice > 0 && item.ozt > 0 && spotForCalc > 0) {
+              const calc = item.unitPrice - (spotForCalc * item.ozt);
+              if (calc > 0.01) return calc;
+            }
+            return 0;
+          };
+
+          const silverWithPremium = silverItems.filter(i => calcPremium(i, 'silver') > 0.01);
+          const silverWithout = silverItems.length - silverWithPremium.length;
+          const goldWithPremium = goldItems.filter(i => calcPremium(i, 'gold') > 0.01);
+          const goldWithout = goldItems.length - goldWithPremium.length;
+
+          const silverTotal = silverWithPremium.reduce((sum, i) => sum + calcPremium(i, 'silver') * i.quantity, 0);
+          const goldTotal = goldWithPremium.reduce((sum, i) => sum + calcPremium(i, 'gold') * i.quantity, 0);
+          const grandTotal = silverTotal + goldTotal;
+
+          const totalIncluded = silverWithPremium.length + goldWithPremium.length;
+          const totalExcluded = silverWithout + goldWithout;
+
+          return (
+            <>
+              {goldWithPremium.length > 0 && (
+                <View style={[styles.card, { backgroundColor: `${colors.gold}15`, borderColor: `${colors.gold}30` }]}>
+                  <Text style={{ color: colors.gold, fontWeight: '700', fontSize: scaledFonts.normal, marginBottom: 8 }}>Gold Premiums</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Total Paid</Text>
+                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>${formatCurrency(goldTotal)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg per Unit</Text>
+                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>${formatCurrency(goldTotal / goldWithPremium.reduce((s, i) => s + i.quantity, 0))}</Text>
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>
+                    {goldWithPremium.length} holding{goldWithPremium.length !== 1 ? 's' : ''} included{goldWithout > 0 ? ` • ${goldWithout} excluded (no data)` : ''}
+                  </Text>
+                </View>
+              )}
+
+              {silverWithPremium.length > 0 && (
+                <View style={[styles.card, { backgroundColor: `${colors.silver}15`, borderColor: `${colors.silver}30` }]}>
+                  <Text style={{ color: colors.silver, fontWeight: '700', fontSize: scaledFonts.normal, marginBottom: 8 }}>Silver Premiums</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Total Paid</Text>
+                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>${formatCurrency(silverTotal)}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg per Unit</Text>
+                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>${formatCurrency(silverTotal / silverWithPremium.reduce((s, i) => s + i.quantity, 0))}</Text>
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>
+                    {silverWithPremium.length} holding{silverWithPremium.length !== 1 ? 's' : ''} included{silverWithout > 0 ? ` • ${silverWithout} excluded (no data)` : ''}
+                  </Text>
+                </View>
+              )}
+
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ color: colors.text, fontWeight: '700', fontSize: scaledFonts.medium }}>Total Premiums Paid</Text>
+                  <Text style={{ color: colors.gold, fontSize: scaledFonts.large, fontWeight: '700' }}>${formatCurrency(grandTotal)}</Text>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 8 }}>
+                  {totalIncluded} holding{totalIncluded !== 1 ? 's' : ''} with valid premium data{totalExcluded > 0 ? ` • ${totalExcluded} excluded (missing spot price)` : ''}
+                </Text>
+              </View>
+
+              {totalIncluded === 0 && (
+                <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: 20, fontSize: scaledFonts.normal }}>
+                  No premium data available. Holdings need a recorded spot price at purchase to calculate premiums.
+                </Text>
+              )}
+            </>
+          );
+        })()}
+      </ModalWrapper>
+
       {/* PRIVACY MODAL */}
       <ModalWrapper
         visible={showPrivacyModal}
@@ -7565,35 +7580,6 @@ function AppContent() {
                 <Text style={[styles.statRowValue, { color: colors.text, fontSize: scaledFonts.normal }]}>{formatOunces(detailItem.ozt * detailItem.quantity)} oz</Text>
               </View>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              {(() => {
-                // Calculate premium from unitPrice and saved historical spotPrice only
-                // Do NOT use live spot — it would give a misleading premium for old purchases
-                const itemSpot = detailItem.spotPrice || 0;
-                let displayPremium = 0;
-                if (detailItem.unitPrice > 0 && detailItem.ozt > 0 && itemSpot > 0) {
-                  displayPremium = detailItem.unitPrice - (itemSpot * detailItem.ozt);
-                }
-                // Fall back to saved premium if we couldn't calculate
-                if (displayPremium === 0) {
-                  displayPremium = parseFloat(detailItem.premium) || 0;
-                }
-                // Hide if zero/negligible or negative (negative means bad spot data)
-                if (displayPremium < 0.01) return null;
-                return (
-                  <>
-                    <View style={styles.statRow}>
-                      <Text style={[styles.statRowLabel, { fontSize: scaledFonts.small }]}>Premium (per unit)</Text>
-                      <Text style={[styles.statRowValue, { color: colors.gold, fontSize: scaledFonts.normal }]}>${formatCurrency(displayPremium)}</Text>
-                    </View>
-                    <View style={styles.statRow}>
-                      <Text style={[styles.statRowLabel, { fontSize: scaledFonts.small }]}>Total Premium</Text>
-                      <Text style={[styles.statRowValue, { color: colors.gold, fontSize: scaledFonts.normal }]}>
-                        ${formatCurrency(displayPremium * detailItem.quantity)}
-                      </Text>
-                    </View>
-                  </>
-                );
-              })()}
               {detailItem.taxes > 0 && (
                 <View style={styles.statRow}>
                   <Text style={[styles.statRowLabel, { fontSize: scaledFonts.small }]}>Taxes</Text>
