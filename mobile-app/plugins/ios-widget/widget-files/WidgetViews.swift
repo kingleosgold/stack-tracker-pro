@@ -108,7 +108,7 @@ struct MediumWidgetView: View {
                             .foregroundColor(mutedColor)
 
                         Text(formatCurrency(data.portfolioValue))
-                            .font(.system(size: 38, weight: .bold))
+                            .font(.system(size: 44, weight: .bold))
                             .foregroundColor(.white)
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
@@ -288,12 +288,12 @@ struct LargeWidgetView: View {
                     // Bottom: Spot prices
                     HStack(spacing: 0) {
                         // Silver spot
-                        HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text("Silver (Ag)")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(silverColor)
                             Text(formatSpotPrice(data.silverSpot))
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
                             HStack(spacing: 2) {
                                 Text(data.silverChangeAmount >= 0 ? "▲" : "▼")
@@ -306,12 +306,12 @@ struct LargeWidgetView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         // Gold spot
-                        HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text("Gold (Au)")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(goldAccent)
                             Text(formatSpotPrice(data.goldSpot))
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
                             HStack(spacing: 2) {
                                 Text(data.goldChangeAmount >= 0 ? "▲" : "▼")

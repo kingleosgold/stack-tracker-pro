@@ -691,6 +691,7 @@ function AppContent() {
     silver: { amount: null, percent: null, prevClose: null },
   });
   const [spotChangeDisplayMode, setSpotChangeDisplayMode] = useState('percent'); // 'percent' or 'amount'
+  const [holdingsCardMetal, setHoldingsCardMetal] = useState('gold'); // 'gold' or 'silver'
 
   // Portfolio Data
   const [silverItems, setSilverItems] = useState([]);
@@ -2344,7 +2345,7 @@ function AppContent() {
     if (dataLoaded && spotPricesLive && (hasGold || hasLifetimeAccess)) {
       syncWidget();
     }
-  }, [totalMeltValue, silverSpot, goldSpot, spotChange, dataLoaded, spotPricesLive, hasGold, hasLifetimeAccess]);
+  }, [totalMeltValue, totalGoldOzt, totalSilverOzt, silverSpot, goldSpot, spotChange, dataLoaded, spotPricesLive, hasGold, hasLifetimeAccess]);
 
   // Sync widget when app comes to foreground
   useEffect(() => {
@@ -4561,27 +4562,32 @@ function AppContent() {
               </Text>
             </View>
 
-            {/* Gold & Silver Holdings Cards */}
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={[styles.card, { flex: 1, backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={{ color: colors.gold, fontSize: scaledFonts.small, fontWeight: '600' }}>Gold Holdings</Text>
+            {/* Holdings Card - Tap to toggle Gold/Silver */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setHoldingsCardMetal(prev => prev === 'gold' ? 'silver' : 'gold');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ color: holdingsCardMetal === 'gold' ? colors.gold : colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>
+                    {holdingsCardMetal === 'gold' ? 'Gold Holdings' : 'Silver Holdings'}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: holdingsCardMetal === 'gold' ? colors.gold : colors.muted + '60' }} />
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: holdingsCardMetal === 'silver' ? colors.silver : colors.muted + '60' }} />
+                  </View>
+                </View>
                 <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
-                  ${formatSmartCurrency(goldMeltValue)}
+                  ${formatSmartCurrency(holdingsCardMetal === 'gold' ? goldMeltValue : silverMeltValue)}
                 </Text>
-                <Text style={{ color: goldGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
-                  {goldGainLoss >= 0 ? '▲' : '▼'} ${formatSmartCurrency(Math.abs(goldGainLoss))} ({goldGainLossPct >= 0 ? '+' : ''}{goldGainLossPct.toFixed(1)}%)
+                <Text style={{ color: (holdingsCardMetal === 'gold' ? goldGainLoss : silverGainLoss) >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                  {(holdingsCardMetal === 'gold' ? goldGainLoss : silverGainLoss) >= 0 ? '▲' : '▼'} ${formatSmartCurrency(Math.abs(holdingsCardMetal === 'gold' ? goldGainLoss : silverGainLoss))} ({(holdingsCardMetal === 'gold' ? goldGainLossPct : silverGainLossPct) >= 0 ? '+' : ''}{(holdingsCardMetal === 'gold' ? goldGainLossPct : silverGainLossPct).toFixed(1)}%)
                 </Text>
               </View>
-              <View style={[styles.card, { flex: 1, backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={{ color: colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>Silver Holdings</Text>
-                <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
-                  ${formatSmartCurrency(silverMeltValue)}
-                </Text>
-                <Text style={{ color: silverGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
-                  {silverGainLoss >= 0 ? '▲' : '▼'} ${formatSmartCurrency(Math.abs(silverGainLoss))} ({silverGainLossPct >= 0 ? '+' : ''}{silverGainLossPct.toFixed(1)}%)
-                </Text>
-              </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Today's Change */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
