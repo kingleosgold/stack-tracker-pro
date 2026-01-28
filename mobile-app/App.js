@@ -473,53 +473,32 @@ const PieChart = ({ data, size = 150, cardBgColor, textColor, mutedColor }) => {
     );
   }
 
-  // Two segments: fill background with first segment, overlay second segment
-  const segments = nonZeroSegments.map((item) => ({
-    ...item,
-    percentage: item.value / total,
-  }));
-
-  // Sort by value descending - larger segment becomes background
-  const sortedSegments = [...segments].sort((a, b) => b.value - a.value);
-  const bgSegment = sortedSegments[0]; // Larger segment (background)
-  const fgSegment = sortedSegments[1]; // Smaller segment (foreground overlay)
-  const fgAngle = fgSegment ? fgSegment.percentage * 360 : 0;
+  // Two segments: use the half-rectangle overlay technique
+  let currentAngle = 0;
+  const segments = nonZeroSegments.map((item) => {
+    const percentage = item.value / total;
+    const angle = percentage * 360;
+    const startAngle = currentAngle;
+    currentAngle += angle;
+    return { ...item, percentage, startAngle, angle };
+  });
 
   return (
     <View style={{ alignItems: 'center' }}>
-      <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', position: 'relative', backgroundColor: bgSegment.color }}>
-        {/* Overlay the foreground segment using two half-circles for angles > 180 or one for <= 180 */}
-        {fgSegment && fgAngle <= 180 && (
-          <View style={{ position: 'absolute', width: size, height: size }}>
-            {/* First half covers 0-180, clip to show only the foreground angle */}
-            <View style={{ position: 'absolute', width: size / 2, height: size, left: size / 2, overflow: 'hidden' }}>
-              <View style={{
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: fgSegment.color,
-                transform: [{ translateX: -size / 2 }, { rotate: `${fgAngle - 180}deg` }, { translateX: size / 2 }],
-                transformOrigin: 'center',
-              }} />
-            </View>
+      <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', position: 'relative' }}>
+        {segments.map((segment, index) => (
+          <View
+            key={index}
+            style={{
+              position: 'absolute',
+              width: size,
+              height: size,
+              transform: [{ rotate: `${segment.startAngle}deg` }],
+            }}
+          >
+            <View style={{ width: size / 2, height: size, backgroundColor: segment.color }} />
           </View>
-        )}
-        {fgSegment && fgAngle > 180 && (
-          <View style={{ position: 'absolute', width: size, height: size }}>
-            {/* For angles > 180, we need both halves */}
-            <View style={{ position: 'absolute', width: size / 2, height: size, left: size / 2, backgroundColor: fgSegment.color }} />
-            <View style={{ position: 'absolute', width: size / 2, height: size, left: 0, overflow: 'hidden' }}>
-              <View style={{
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: fgSegment.color,
-                transform: [{ translateX: size / 2 }, { rotate: `${fgAngle - 180}deg` }, { translateX: -size / 2 }],
-              }} />
-            </View>
-          </View>
-        )}
-        {/* Center hole for donut effect */}
+        ))}
         <View style={{
           position: 'absolute',
           width: size * 0.6,
@@ -877,13 +856,14 @@ function AppContent() {
   };
 
   // Smart currency formatting: shows decimals only if meaningful
-  // "$100" not "$100.00", but "$100.50" if cents exist
+  // "$100" not "$100.00", but "$100.50" if cents exist (always 2 decimals when not whole number)
   const formatSmartCurrency = (value, maxDecimals = 2) => {
     const rounded = Math.round(value * Math.pow(10, maxDecimals)) / Math.pow(10, maxDecimals);
     if (rounded === Math.floor(rounded)) {
       return rounded.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
-    return rounded.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: maxDecimals });
+    // If there are cents, always show 2 decimal places (e.g., "$52,868.90" not "$52,868.9")
+    return rounded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: maxDecimals });
   };
 
   // Format quantity with smart decimals and commas
@@ -1092,6 +1072,11 @@ function AppContent() {
 
   const totalGainLoss = totalMeltValue - totalCostBasis;
   const totalGainLossPct = totalCostBasis > 0 ? ((totalGainLoss / totalCostBasis) * 100) : 0;
+
+  const silverGainLoss = silverMeltValue - silverCostBasis;
+  const silverGainLossPct = silverCostBasis > 0 ? ((silverGainLoss / silverCostBasis) * 100) : 0;
+  const goldGainLoss = goldMeltValue - goldCostBasis;
+  const goldGainLossPct = goldCostBasis > 0 ? ((goldGainLoss / goldCostBasis) * 100) : 0;
 
   const goldSilverRatio = silverSpot > 0 ? (goldSpot / silverSpot) : 0;
 
@@ -4516,18 +4501,24 @@ function AppContent() {
               </Text>
             </View>
 
-            {/* Gold & Silver Value Cards */}
+            {/* Gold & Silver Holdings Cards */}
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={[styles.card, { flex: 1, backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={{ color: colors.gold, fontSize: scaledFonts.small, fontWeight: '600' }}>Gold</Text>
+                <Text style={{ color: colors.gold, fontSize: scaledFonts.small, fontWeight: '600' }}>Gold Holdings</Text>
                 <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
                   ${formatSmartCurrency(goldMeltValue)}
                 </Text>
+                <Text style={{ color: goldGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                  {goldGainLoss >= 0 ? '▲' : '▼'} ${formatSmartCurrency(Math.abs(goldGainLoss))} ({goldGainLossPct >= 0 ? '+' : ''}{goldGainLossPct.toFixed(1)}%)
+                </Text>
               </View>
               <View style={[styles.card, { flex: 1, backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <Text style={{ color: colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>Silver</Text>
+                <Text style={{ color: colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>Silver Holdings</Text>
                 <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
                   ${formatSmartCurrency(silverMeltValue)}
+                </Text>
+                <Text style={{ color: silverGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                  {silverGainLoss >= 0 ? '▲' : '▼'} ${formatSmartCurrency(Math.abs(silverGainLoss))} ({silverGainLossPct >= 0 ? '+' : ''}{silverGainLossPct.toFixed(1)}%)
                 </Text>
               </View>
             </View>
@@ -4626,6 +4617,11 @@ function AppContent() {
                   )}
                 </View>
               </View>
+              {/* Gold/Silver Ratio row */}
+              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: colors.muted, fontSize: scaledFonts.small }}>Gold/Silver Ratio</Text>
+                <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>{goldSilverRatio.toFixed(1)}:1</Text>
+              </View>
               <View style={{ marginTop: 8 }}>
                 <Text style={{ color: colors.muted, fontSize: 10, textAlign: 'center' }}>
                   Source: {priceSource}
@@ -4634,23 +4630,22 @@ function AppContent() {
               </View>
             </View>
 
-            {/* Gold/Silver Ratio */}
-            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Gold/Silver Ratio</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={{ color: colors.text, fontSize: 36, fontWeight: '700' }}>{goldSilverRatio.toFixed(1)}</Text>
-                <Text style={{ color: colors.muted, marginLeft: 8 }}>:1</Text>
+            {/* Holdings Breakdown */}
+            {(silverMeltValue > 0 || goldMeltValue > 0) && (
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center' }]}>
+                <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium, marginBottom: 12, alignSelf: 'flex-start' }]}>Holdings Breakdown</Text>
+                <PieChart
+                  data={[
+                    { label: 'Gold', value: goldMeltValue, color: colors.gold },
+                    { label: 'Silver', value: silverMeltValue, color: colors.silver },
+                  ]}
+                  size={140}
+                  cardBgColor={colors.cardBg}
+                  textColor={colors.text}
+                  mutedColor={colors.muted}
+                />
               </View>
-              <View style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', padding: 12, borderRadius: 8 }}>
-                {goldSilverRatio > 80 ? (
-                  <Text style={{ color: colors.silver }}>HIGH - Silver may be undervalued</Text>
-                ) : goldSilverRatio < 60 ? (
-                  <Text style={{ color: colors.gold }}>LOW - Gold may be undervalued</Text>
-                ) : (
-                  <Text style={{ color: colors.muted }}>Normal range (60-80)</Text>
-                )}
-              </View>
-            </View>
+            )}
 
             {/* Quick Stats */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -7619,7 +7614,7 @@ function AppContent() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
-          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>🔤 Name (A-Z)</Text>
+          <Text style={[styles.cardTitle, { marginBottom: 0, color: colors.text }]}>Name (A-Z)</Text>
           <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>Alphabetical by product name</Text>
         </TouchableOpacity>
       </ModalWrapper>
