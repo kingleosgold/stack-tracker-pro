@@ -4485,23 +4485,6 @@ function AppContent() {
               </TouchableOpacity>
             )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Global $/ % toggle */}
-            <TouchableOpacity
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 14,
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                borderWidth: 1,
-                borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-              }}
-              onPress={toggleSpotChangeDisplayMode}
-            >
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>
-                {spotChangeDisplayMode === 'amount' ? '$' : '%'}
-              </Text>
-            </TouchableOpacity>
           {supabaseUser ? (
             // Signed in - show profile icon that goes to Settings
             <TouchableOpacity
@@ -4533,7 +4516,6 @@ function AppContent() {
               <Text style={{ color: '#18181b', fontSize: 13, fontWeight: '600' }}>Sign In</Text>
             </TouchableOpacity>
           )}
-          </View>
         </View>
       </View>
 
@@ -4563,7 +4545,23 @@ function AppContent() {
           <>
             {/* Portfolio Value */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large }]}>Portfolio Value</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large }]}>Portfolio Value</Text>
+                <View style={{ flexDirection: 'row', borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }}>
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: spotChangeDisplayMode === 'amount' ? colors.gold : 'transparent' }}
+                    onPress={() => { if (spotChangeDisplayMode !== 'amount') toggleSpotChangeDisplayMode(); }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: spotChangeDisplayMode === 'amount' ? '#18181b' : colors.muted }}>$</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: spotChangeDisplayMode === 'percent' ? colors.gold : 'transparent' }}
+                    onPress={() => { if (spotChangeDisplayMode !== 'percent') toggleSpotChangeDisplayMode(); }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: spotChangeDisplayMode === 'percent' ? '#18181b' : colors.muted }}>%</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
               <Text
                 style={{ color: colors.text, fontSize: Math.round(36 * fontScale), fontWeight: '700', marginBottom: 4 }}
                 numberOfLines={1}
@@ -4582,11 +4580,11 @@ function AppContent() {
 
             {/* Holdings Card */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large }]}>Holdings</Text>
+              <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.large }]}>Holdings Value</Text>
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.gold, fontSize: scaledFonts.small, fontWeight: '600' }}>Gold</Text>
-                  <Text style={{ color: colors.text, fontSize: scaledFonts.huge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                  <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
                     ${formatSmartCurrency(goldMeltValue)}
                   </Text>
                   <Text style={{ color: goldGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
@@ -4595,7 +4593,7 @@ function AppContent() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>Silver</Text>
-                  <Text style={{ color: colors.text, fontSize: scaledFonts.huge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                  <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
                     ${formatSmartCurrency(silverMeltValue)}
                   </Text>
                   <Text style={{ color: silverGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
@@ -4615,10 +4613,14 @@ function AppContent() {
                     numberOfLines={1}
                     adjustsFontSizeToFit={true}
                   >
-                    {spotChangeDisplayMode === 'amount'
-                      ? `${isDailyChangePositive ? '+' : ''}${dailyChange >= 0 ? '' : '-'}$${formatSmartCurrency(Math.abs(dailyChange))}`
-                      : `${isDailyChangePositive ? '+' : ''}${dailyChangePct.toFixed(2)}%`
-                    }
+                    {isDailyChangePositive ? '+' : ''}{dailyChange >= 0 ? '' : '-'}${formatSmartCurrency(Math.abs(dailyChange))}
+                  </Text>
+                  <Text
+                    style={{ color: isDailyChangePositive ? colors.success : colors.error, fontSize: scaledFonts.medium }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                  >
+                    {isDailyChangePositive ? '▲' : '▼'} {isDailyChangePositive ? '+' : ''}{dailyChangePct.toFixed(2)}%
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 8 }}>
                     Baseline: ${formatSmartCurrency(midnightBaseline)} (@ Ag ${midnightSnapshot?.silverSpot}, Au ${midnightSnapshot?.goldSpot})
