@@ -51,7 +51,8 @@
       "Bash(git hash-object:*)",
       "Bash(cd:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(copy \"C:\\\\Users\\\\Jon\\\\Developer\\\\stacktrackergold-mobile\\\\mobile-app\\\\targets\\\\widget\\\\WidgetData.swift\" \"C:\\\\Users\\\\Jon\\\\Developer\\\\stacktrackergold-mobile\\\\mobile-app\\\\plugins\\\\ios-widget\\\\widget-files\\\\WidgetData.swift\")"
     ]
   }
 }
