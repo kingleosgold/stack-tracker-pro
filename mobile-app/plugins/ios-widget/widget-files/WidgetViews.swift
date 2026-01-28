@@ -38,19 +38,18 @@ struct SmallWidgetView: View {
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
 
-                // Daily Change
-                HStack(spacing: 3) {
-                    Text(data.dailyChangeAmount >= 0 ? "▲" : "▼")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(portfolioChangeColor)
-
-                    Text(formatChange(data.dailyChangeAmount))
+                // Daily Change - stacked for better fit on small widget
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(data.dailyChangeAmount >= 0 ? "▲" : "▼") \(formatChange(data.dailyChangeAmount))")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(portfolioChangeColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
-                    Text("(\(formatPercent(data.dailyChangePercent)))")
+                    Text(formatPercent(data.dailyChangePercent))
                         .font(.system(size: 11))
                         .foregroundColor(portfolioChangeColor)
+                        .lineLimit(1)
                 }
 
                 Spacer()
