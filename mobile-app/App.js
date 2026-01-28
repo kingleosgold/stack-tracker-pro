@@ -6708,83 +6708,85 @@ function AppContent() {
         isDarkMode={isDarkMode}
       >
         {(() => {
-          // Calculate premium per holding: unitPrice - (spotPrice * ozt)
-          // Try saved spotPrice first, then current spot as approximation
-          const calcPremium = (item, metal) => {
-            const savedPremium = parseFloat(item.premium) || 0;
-            if (savedPremium > 0.01) return savedPremium;
-            const spot = item.spotPrice || 0;
-            const liveSpot = metal === 'gold' ? goldSpot : silverSpot;
-            const spotForCalc = spot > 0 ? spot : liveSpot;
-            if (item.unitPrice > 0 && item.ozt > 0 && spotForCalc > 0) {
-              const calc = item.unitPrice - (spotForCalc * item.ozt);
-              if (calc > 0.01) return calc;
-            }
-            return 0;
-          };
+          // Simply read saved item.premium values — already calculated when added/edited
+          const silverWith = silverItems.filter(i => (i.premium || 0) > 0);
+          const goldWith = goldItems.filter(i => (i.premium || 0) > 0);
 
-          const silverWithPremium = silverItems.filter(i => calcPremium(i, 'silver') > 0.01);
-          const silverWithout = silverItems.length - silverWithPremium.length;
-          const goldWithPremium = goldItems.filter(i => calcPremium(i, 'gold') > 0.01);
-          const goldWithout = goldItems.length - goldWithPremium.length;
-
-          const silverTotal = silverWithPremium.reduce((sum, i) => sum + calcPremium(i, 'silver') * i.quantity, 0);
-          const goldTotal = goldWithPremium.reduce((sum, i) => sum + calcPremium(i, 'gold') * i.quantity, 0);
+          const silverTotal = silverWith.reduce((sum, i) => sum + i.premium * i.quantity, 0);
+          const goldTotal = goldWith.reduce((sum, i) => sum + i.premium * i.quantity, 0);
           const grandTotal = silverTotal + goldTotal;
 
-          const totalIncluded = silverWithPremium.length + goldWithPremium.length;
-          const totalExcluded = silverWithout + goldWithout;
+          const totalAll = silverItems.length + goldItems.length;
+          const totalWith = silverWith.length + goldWith.length;
 
           return (
             <>
-              {goldWithPremium.length > 0 && (
-                <View style={[styles.card, { backgroundColor: `${colors.gold}15`, borderColor: `${colors.gold}30` }]}>
-                  <Text style={{ color: colors.gold, fontWeight: '700', fontSize: scaledFonts.normal, marginBottom: 8 }}>Gold Premiums</Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Total Paid</Text>
-                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>${formatCurrency(goldTotal)}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg per Unit</Text>
-                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>${formatCurrency(goldTotal / goldWithPremium.reduce((s, i) => s + i.quantity, 0))}</Text>
-                  </View>
-                  <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>
-                    {goldWithPremium.length} holding{goldWithPremium.length !== 1 ? 's' : ''} included{goldWithout > 0 ? ` • ${goldWithout} excluded (no data)` : ''}
-                  </Text>
-                </View>
-              )}
-
-              {silverWithPremium.length > 0 && (
+              {/* Silver Premiums */}
+              {silverItems.length > 0 && (
                 <View style={[styles.card, { backgroundColor: `${colors.silver}15`, borderColor: `${colors.silver}30` }]}>
                   <Text style={{ color: colors.silver, fontWeight: '700', fontSize: scaledFonts.normal, marginBottom: 8 }}>Silver Premiums</Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Total Paid</Text>
-                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>${formatCurrency(silverTotal)}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg per Unit</Text>
-                    <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>${formatCurrency(silverTotal / silverWithPremium.reduce((s, i) => s + i.quantity, 0))}</Text>
-                  </View>
+                  {silverWith.length > 0 ? (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Total Paid</Text>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>${formatCurrency(silverTotal)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg per Unit</Text>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>${formatCurrency(silverTotal / silverWith.reduce((s, i) => s + i.quantity, 0))}</Text>
+                      </View>
+                    </>
+                  ) : (
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.small, marginBottom: 4 }}>No premium data available</Text>
+                  )}
                   <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>
-                    {silverWithPremium.length} holding{silverWithPremium.length !== 1 ? 's' : ''} included{silverWithout > 0 ? ` • ${silverWithout} excluded (no data)` : ''}
+                    {silverWith.length} of {silverItems.length} holding{silverItems.length !== 1 ? 's' : ''} with data
                   </Text>
                 </View>
               )}
 
+              {/* Gold Premiums */}
+              {goldItems.length > 0 && (
+                <View style={[styles.card, { backgroundColor: `${colors.gold}15`, borderColor: `${colors.gold}30` }]}>
+                  <Text style={{ color: colors.gold, fontWeight: '700', fontSize: scaledFonts.normal, marginBottom: 8 }}>Gold Premiums</Text>
+                  {goldWith.length > 0 ? (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Total Paid</Text>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal, fontWeight: '600' }}>${formatCurrency(goldTotal)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: scaledFonts.normal }}>Avg per Unit</Text>
+                        <Text style={{ color: colors.text, fontSize: scaledFonts.normal }}>${formatCurrency(goldTotal / goldWith.reduce((s, i) => s + i.quantity, 0))}</Text>
+                      </View>
+                    </>
+                  ) : (
+                    <Text style={{ color: colors.muted, fontSize: scaledFonts.small, marginBottom: 4 }}>No premium data available</Text>
+                  )}
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 4 }}>
+                    {goldWith.length} of {goldItems.length} holding{goldItems.length !== 1 ? 's' : ''} with data
+                  </Text>
+                </View>
+              )}
+
+              {/* Total */}
               <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={{ color: colors.text, fontWeight: '700', fontSize: scaledFonts.medium }}>Total Premiums Paid</Text>
                   <Text style={{ color: colors.gold, fontSize: scaledFonts.large, fontWeight: '700' }}>${formatCurrency(grandTotal)}</Text>
                 </View>
                 <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 8 }}>
-                  {totalIncluded} holding{totalIncluded !== 1 ? 's' : ''} with valid premium data{totalExcluded > 0 ? ` • ${totalExcluded} excluded (missing spot price)` : ''}
+                  {totalWith} of {totalAll} holding{totalAll !== 1 ? 's' : ''} with premium data
                 </Text>
               </View>
 
-              {totalIncluded === 0 && (
-                <Text style={{ color: colors.muted, textAlign: 'center', paddingVertical: 20, fontSize: scaledFonts.normal }}>
-                  No premium data available. Holdings need a recorded spot price at purchase to calculate premiums.
-                </Text>
+              {totalWith === 0 && (
+                <View style={[styles.card, { backgroundColor: isDarkMode ? 'rgba(251,191,36,0.1)' : 'rgba(251,191,36,0.15)', borderColor: `${colors.gold}30` }]}>
+                  <Text style={{ color: colors.gold, fontWeight: '600', fontSize: scaledFonts.normal, marginBottom: 4 }}>How to add premium data</Text>
+                  <Text style={{ color: colors.muted, fontSize: scaledFonts.small }}>
+                    Edit a holding and enter the "Spot at Purchase" price. The premium will be calculated automatically as the difference between your unit price and the spot price.
+                  </Text>
+                </View>
               )}
             </>
           );
