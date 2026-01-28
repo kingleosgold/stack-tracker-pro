@@ -35,7 +35,7 @@ import ViewShot from 'react-native-view-shot';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/screens/AuthScreen';
 import AccountScreen from './src/screens/AccountScreen';
-import { AppleLogo, GoogleLogo, ProfileIcon } from './src/components/icons';
+import { AppleLogo, GoogleLogo, ProfileIcon, DashboardIcon, HoldingsIcon, AnalyticsIcon, ToolsIcon, SettingsIcon, SortIcon } from './src/components/icons';
 import {
   fetchHoldings,
   addHolding,
@@ -4701,7 +4701,7 @@ function AppContent() {
                   setShowSortMenu(true);
                 }}
               >
-                <Text style={{ color: colors.muted, fontSize: 14, fontWeight: '600' }}>Sort</Text>
+                <SortIcon size={20} color={colors.muted} />
               </TouchableOpacity>
             </View>
 
@@ -5836,9 +5836,9 @@ function AppContent() {
                 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {[
-                      { key: 'light', label: 'Light' },
-                      { key: 'dark', label: 'Dark' },
-                      { key: 'system', label: 'Auto' },
+                      { key: 'light', label: 'Light', icon: '☀️' },
+                      { key: 'dark', label: 'Dark', icon: '🌙' },
+                      { key: 'system', label: 'Auto', icon: '⚙️' },
                     ].map((option) => (
                       <TouchableOpacity
                         key={option.key}
@@ -5857,10 +5857,11 @@ function AppContent() {
                           changeTheme(option.key);
                         }}
                       >
+                        <Text style={{ fontSize: 20, marginBottom: 4 }}>{option.icon}</Text>
                         <Text style={{
                           color: themePreference === option.key ? colors.text : colors.muted,
                           fontWeight: themePreference === option.key ? '600' : '400',
-                          fontSize: scaledFonts.normal,
+                          fontSize: scaledFonts.small,
                         }}>
                           {option.label}
                         </Text>
@@ -6205,14 +6206,15 @@ function AppContent() {
       {/* Bottom Tabs */}
       <View style={[styles.bottomTabs, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.95)', borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 10) }]}>
         {[
-          { key: 'dashboard', label: 'Dashboard' },
-          { key: 'holdings', label: 'Holdings' },
-          { key: 'analytics', label: 'Analytics' },
-          { key: 'tools', label: 'Tools' },
-          { key: 'settings', label: 'Settings' },
+          { key: 'dashboard', label: 'Dashboard', Icon: DashboardIcon },
+          { key: 'holdings', label: 'Holdings', Icon: HoldingsIcon },
+          { key: 'analytics', label: 'Analytics', Icon: AnalyticsIcon },
+          { key: 'tools', label: 'Tools', Icon: ToolsIcon },
+          { key: 'settings', label: 'Settings', Icon: SettingsIcon },
         ].map(t => (
           <TouchableOpacity key={t.key} style={styles.bottomTab} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(t.key); }}>
-            <Text style={{ color: tab === t.key ? colors.gold : colors.muted, fontSize: scaledFonts.small, fontWeight: tab === t.key ? '600' : '400' }}>{t.label}</Text>
+            <t.Icon size={22} color={tab === t.key ? colors.gold : colors.muted} />
+            <Text style={{ color: tab === t.key ? colors.gold : colors.muted, fontSize: 10, fontWeight: tab === t.key ? '600' : '400', marginTop: 4 }}>{t.label}</Text>
             {tab === t.key && <View style={{ position: 'absolute', bottom: -4, left: 8, right: 8, height: 2, backgroundColor: colors.gold, borderRadius: 1 }} />}
           </TouchableOpacity>
         ))}

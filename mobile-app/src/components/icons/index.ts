@@ -1,3 +1,9 @@
 export { default as GoogleLogo } from './GoogleLogo';
 export { default as AppleLogo } from './AppleLogo';
 export { default as ProfileIcon } from './ProfileIcon';
+export { default as DashboardIcon } from './DashboardIcon';
+export { default as HoldingsIcon } from './HoldingsIcon';
+export { default as AnalyticsIcon } from './AnalyticsIcon';
+export { default as ToolsIcon } from './ToolsIcon';
+export { default as SettingsIcon } from './SettingsIcon';
+export { default as SortIcon } from './SortIcon';
