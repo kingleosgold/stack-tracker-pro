@@ -691,7 +691,7 @@ function AppContent() {
     silver: { amount: null, percent: null, prevClose: null },
   });
   const [spotChangeDisplayMode, setSpotChangeDisplayMode] = useState('percent'); // 'percent' or 'amount'
-  const [holdingsCardMetal, setHoldingsCardMetal] = useState('gold'); // 'gold' or 'silver'
+  const [holdingsGainMode, setHoldingsGainMode] = useState('amount'); // 'amount' or 'percent'
 
   // Portfolio Data
   const [silverItems, setSilverItems] = useState([]);
@@ -4562,32 +4562,39 @@ function AppContent() {
               </Text>
             </View>
 
-            {/* Holdings Card - Tap to toggle Gold/Silver */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                setHoldingsCardMetal(prev => prev === 'gold' ? 'silver' : 'gold');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-            >
-              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ color: holdingsCardMetal === 'gold' ? colors.gold : colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>
-                    {holdingsCardMetal === 'gold' ? 'Gold Holdings' : 'Silver Holdings'}
+            {/* Gold & Silver Holdings Card */}
+            <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {/* Gold column */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.gold, fontSize: scaledFonts.small, fontWeight: '600' }}>Gold Holdings</Text>
+                  <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                    ${formatSmartCurrency(goldMeltValue)}
                   </Text>
-                  <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: holdingsCardMetal === 'gold' ? colors.gold : colors.muted + '60' }} />
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: holdingsCardMetal === 'silver' ? colors.silver : colors.muted + '60' }} />
-                  </View>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => { setHoldingsGainMode(prev => prev === 'amount' ? 'percent' : 'amount'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}>
+                    <Text style={{ color: goldGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, fontWeight: '600', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                      {goldGainLoss >= 0 ? '▲' : '▼'} {holdingsGainMode === 'amount' ? `$${formatSmartCurrency(Math.abs(goldGainLoss))}` : `${goldGainLossPct >= 0 ? '+' : ''}${goldGainLossPct.toFixed(1)}%`}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
-                  ${formatSmartCurrency(holdingsCardMetal === 'gold' ? goldMeltValue : silverMeltValue)}
-                </Text>
-                <Text style={{ color: (holdingsCardMetal === 'gold' ? goldGainLoss : silverGainLoss) >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
-                  {(holdingsCardMetal === 'gold' ? goldGainLoss : silverGainLoss) >= 0 ? '▲' : '▼'} ${formatSmartCurrency(Math.abs(holdingsCardMetal === 'gold' ? goldGainLoss : silverGainLoss))} ({(holdingsCardMetal === 'gold' ? goldGainLossPct : silverGainLossPct) >= 0 ? '+' : ''}{(holdingsCardMetal === 'gold' ? goldGainLossPct : silverGainLossPct).toFixed(1)}%)
-                </Text>
+                {/* Silver column */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.silver, fontSize: scaledFonts.small, fontWeight: '600' }}>Silver Holdings</Text>
+                  <Text style={{ color: colors.text, fontSize: scaledFonts.xlarge, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                    ${formatSmartCurrency(silverMeltValue)}
+                  </Text>
+                  <TouchableOpacity activeOpacity={0.7} onPress={() => { setHoldingsGainMode(prev => prev === 'amount' ? 'percent' : 'amount'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}>
+                    <Text style={{ color: silverGainLoss >= 0 ? colors.success : colors.error, fontSize: scaledFonts.small, fontWeight: '600', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit={true}>
+                      {silverGainLoss >= 0 ? '▲' : '▼'} {holdingsGainMode === 'amount' ? `$${formatSmartCurrency(Math.abs(silverGainLoss))}` : `${silverGainLossPct >= 0 ? '+' : ''}${silverGainLossPct.toFixed(1)}%`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </TouchableOpacity>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 4, marginTop: 8 }}>
+                <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: holdingsGainMode === 'amount' ? colors.text : colors.muted + '50' }} />
+                <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: holdingsGainMode === 'percent' ? colors.text : colors.muted + '50' }} />
+              </View>
+            </View>
 
             {/* Today's Change */}
             <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
