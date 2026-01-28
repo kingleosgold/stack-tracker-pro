@@ -1199,9 +1199,7 @@ function AppContent() {
 
     if (unitPrice > 0 && spotPrice > 0 && ozt > 0) {
       const calculatedPremium = unitPrice - (spotPrice * ozt);
-      if (calculatedPremium > 0) {
-        setForm(prev => ({ ...prev, premium: calculatedPremium.toFixed(2) }));
-      }
+      setForm(prev => ({ ...prev, premium: calculatedPremium.toFixed(2) }));
     }
   }, [form.unitPrice, form.spotPrice, form.ozt]);
 
@@ -7566,16 +7564,18 @@ function AppContent() {
               </View>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               {(() => {
-                // Use saved premium if non-zero, otherwise try to calculate from unitPrice and spotPrice
-                const savedPremium = parseFloat(detailItem.premium) || 0;
-                let displayPremium = savedPremium;
+                // Always recalculate premium from unitPrice and spotPrice when possible
                 const itemSpot = detailItem.spotPrice || 0;
-                // If premium is 0, try to calculate using saved spotPrice or current live spot
-                if (displayPremium === 0 && detailItem.unitPrice > 0 && detailItem.ozt > 0) {
+                let displayPremium = 0;
+                if (detailItem.unitPrice > 0 && detailItem.ozt > 0) {
                   const spotForCalc = itemSpot > 0 ? itemSpot : (detailMetal === 'silver' ? silverSpot : goldSpot);
                   if (spotForCalc > 0) {
                     displayPremium = detailItem.unitPrice - (spotForCalc * detailItem.ozt);
                   }
+                }
+                // Fall back to saved premium if we couldn't calculate
+                if (displayPremium === 0) {
+                  displayPremium = parseFloat(detailItem.premium) || 0;
                 }
                 // Only hide if truly zero or negligible (< $0.01)
                 if (Math.abs(displayPremium) < 0.01) return null;
