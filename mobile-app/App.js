@@ -1024,12 +1024,27 @@ function AppContent() {
   const avgSilverCostPerOz = totalSilverOzt > 0 ? (silverCostBasis / totalSilverOzt) : 0;
   const avgGoldCostPerOz = totalGoldOzt > 0 ? (goldCostBasis / totalGoldOzt) : 0;
 
-  // Daily change calculation - recalculates baseline using CURRENT oz counts × MIDNIGHT spot prices
-  // This ensures adding/removing items doesn't affect Today's Change (only price movement does)
+  // Daily change calculation - uses holdings owned BEFORE today × spot price changes
+  // Holdings purchased today should NOT affect Today's Change (user didn't own them at midnight)
+  const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+  // Filter to holdings that existed before today (purchased before today or no date = assume pre-existing)
+  const preTodaySilverOzt = silverItems
+    .filter(i => !i.datePurchased || i.datePurchased < todayStr)
+    .reduce((sum, i) => sum + (i.ozt * i.quantity), 0);
+  const preTodayGoldOzt = goldItems
+    .filter(i => !i.datePurchased || i.datePurchased < todayStr)
+    .reduce((sum, i) => sum + (i.ozt * i.quantity), 0);
+
+  // Midnight baseline = pre-today holdings × midnight spot prices
   const midnightBaseline = midnightSnapshot
-    ? (totalSilverOzt * midnightSnapshot.silverSpot) + (totalGoldOzt * midnightSnapshot.goldSpot)
+    ? (preTodaySilverOzt * midnightSnapshot.silverSpot) + (preTodayGoldOzt * midnightSnapshot.goldSpot)
     : null;
-  const dailyChange = midnightBaseline !== null ? (totalMeltValue - midnightBaseline) : 0;
+
+  // Current value of pre-today holdings at live prices
+  const preTodayCurrentValue = (preTodaySilverOzt * silverSpot) + (preTodayGoldOzt * goldSpot);
+
+  const dailyChange = midnightBaseline !== null ? (preTodayCurrentValue - midnightBaseline) : 0;
   const dailyChangePct = (midnightBaseline !== null && midnightBaseline > 0) ? ((dailyChange / midnightBaseline) * 100) : 0;
   const isDailyChangePositive = dailyChange >= 0;
 
@@ -2179,16 +2194,16 @@ function AppContent() {
     }
 
     try {
-      // Calculate daily change
+      // Calculate daily change (only for holdings owned before today)
       let dailyChangeAmt = 0;
       let dailyChangePct = 0;
 
       if (midnightSnapshot && spotPricesLive) {
-        const midnightBaseline = (totalSilverOzt * midnightSnapshot.silverSpot) +
-                                 (totalGoldOzt * midnightSnapshot.goldSpot);
-        if (midnightBaseline > 0) {
-          dailyChangeAmt = totalMeltValue - midnightBaseline;
-          dailyChangePct = (dailyChangeAmt / midnightBaseline) * 100;
+        // Use pre-calculated values from main calculations (excludes today's purchases)
+        const widgetMidnightBaseline = midnightBaseline;
+        if (widgetMidnightBaseline && widgetMidnightBaseline > 0) {
+          dailyChangeAmt = preTodayCurrentValue - widgetMidnightBaseline;
+          dailyChangePct = (dailyChangeAmt / widgetMidnightBaseline) * 100;
         }
       }
 
