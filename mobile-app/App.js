@@ -4644,11 +4644,11 @@ function AppContent() {
             {/* Show filtered items or both with grouping */}
             {metalTab !== 'both' ? (
               <>
-                {sortItems(items, metalTab).map(item => {
+                {sortItems(items, metalTab).map((item, index) => {
                   const itemPremiumPct = calculatePremiumPercent(item.premium, item.unitPrice);
                   return (
                     <TouchableOpacity
-                      key={item.id}
+                      key={item.supabase_id || `${item.id}-${index}`}
                       style={[styles.itemCard, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.05)' : `${colors.gold}30` }]}
                       onPress={() => viewItemDetail(item, metalTab)}
                       activeOpacity={0.7}
@@ -4689,11 +4689,11 @@ function AppContent() {
                       <Text style={{ color: colors.silver, fontWeight: '600', marginHorizontal: 12, fontSize: scaledFonts.normal }}>🥈 SILVER ({silverItems.length})</Text>
                       <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
                     </View>
-                    {sortItems(silverItems, 'silver').map(item => {
+                    {sortItems(silverItems, 'silver').map((item, index) => {
                       const itemPremiumPct = calculatePremiumPercent(item.premium, item.unitPrice);
                       return (
                         <TouchableOpacity
-                          key={item.id}
+                          key={item.supabase_id || `silver-${item.id}-${index}`}
                           style={[styles.itemCard, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.05)' : `${colors.gold}30` }]}
                           onPress={() => viewItemDetail(item, 'silver')}
                           activeOpacity={0.7}
@@ -4727,11 +4727,11 @@ function AppContent() {
                       <Text style={{ color: colors.gold, fontWeight: '600', marginHorizontal: 12, fontSize: scaledFonts.normal }}>🥇 GOLD ({goldItems.length})</Text>
                       <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
                     </View>
-                    {sortItems(goldItems, 'gold').map(item => {
+                    {sortItems(goldItems, 'gold').map((item, index) => {
                       const itemPremiumPct = calculatePremiumPercent(item.premium, item.unitPrice);
                       return (
                         <TouchableOpacity
-                          key={item.id}
+                          key={item.supabase_id || `gold-${item.id}-${index}`}
                           style={[styles.itemCard, { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : `${colors.gold}15`, borderColor: isDarkMode ? 'rgba(255,255,255,0.05)' : `${colors.gold}30` }]}
                           onPress={() => viewItemDetail(item, 'gold')}
                           activeOpacity={0.7}
@@ -5992,7 +5992,7 @@ function AppContent() {
                   isLast={true}
                 />
               </View>
-              <SectionFooter text="Stack Tracker Gold - Privacy-first precious metals tracking. We can't access your data." />
+              <SectionFooter text="Stack Tracker Gold - Your data is encrypted and secure. We never sell your data to third parties." />
 
               {/* Advanced Section */}
               <SectionHeader title="Advanced" />
@@ -6396,25 +6396,28 @@ function AppContent() {
       <ModalWrapper
         visible={showPrivacyModal}
         onClose={() => setShowPrivacyModal(false)}
-        title="🔒 Privacy Architecture"
+        title="🔒 Privacy & Security"
         colors={colors}
         isDarkMode={isDarkMode}
       >
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.success }]}>✅ What We Do</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Store data locally on YOUR device</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Process receipts in memory only</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Delete images immediately</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Store data locally on YOUR device (when not signed in)</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Sync securely to the cloud (when signed in)</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Encrypt all data in transit and at rest</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Process receipt images in memory only</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Delete images immediately after scanning</Text>
         </View>
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.error }]}>❌ What We DON'T Do</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Store your data on servers</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Track your holdings</Text>
-          <Text style={[styles.privacyItem, { color: colors.text }]}>• Share any information</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Sell your data to third parties</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Share your information with advertisers</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Track your browsing or behavior</Text>
+          <Text style={[styles.privacyItem, { color: colors.text }]}>• Access your data without permission</Text>
         </View>
         <View style={[styles.card, { backgroundColor: `${colors.success}22` }]}>
-          <Text style={{ color: colors.success, fontWeight: '600' }}>Our Promise</Text>
-          <Text style={{ color: colors.muted, fontStyle: 'italic' }}>"We architected the system so we CAN'T access your data."</Text>
+          <Text style={{ color: colors.success, fontWeight: '600' }}>Your Data, Your Control</Text>
+          <Text style={{ color: colors.muted, fontStyle: 'italic' }}>"Your data is encrypted and secure. Use locally or sync across devices - you decide."</Text>
         </View>
       </ModalWrapper>
 
@@ -6478,37 +6481,22 @@ function AppContent() {
         )}
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Backup & Restore</Text>
-          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Your data is stored locally on your device only</Text>
-          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Use "Backup" to save to iCloud Drive, Google Drive, etc.</Text>
-          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Use "Restore" to load a backup on any device</Text>
-          <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', padding: 10, borderRadius: 8, marginTop: 8 }}>
-            <Text style={{ color: colors.gold, fontSize: scaledFonts.small, fontWeight: '600' }}>⚠️ IMPORTANT: Backup regularly to avoid data loss!</Text>
+          <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Your Data</Text>
+          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Not signed in: Data stored locally on your device</Text>
+          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Signed in: Data syncs securely to the cloud</Text>
+          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Use "Backup" to export to iCloud Drive, Google Drive, etc.</Text>
+          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Use "Restore" to import a backup on any device</Text>
+          <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', padding: 10, borderRadius: 8, marginTop: 8 }}>
+            <Text style={{ color: colors.success, fontSize: scaledFonts.small, fontWeight: '600' }}>Sign in to automatically sync across devices!</Text>
           </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFonts.medium }]}>Using Multiple Devices</Text>
-          {Platform.OS === 'ios' ? (
-            <>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• iCloud Sync</Text>
-                <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                  <Text style={{ color: colors.gold, fontSize: scaledFonts.tiny, fontWeight: '600' }}>GOLD</Text>
-                </View>
-              </View>
-              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.text, fontSize: scaledFonts.small }]}>Automatically sync across all your Apple devices</Text>
-              <Text style={[styles.privacyItem, { marginTop: 12, color: colors.text, fontSize: scaledFonts.small }]}>• Manual Backup/Restore (all users)</Text>
-              <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.muted, fontSize: scaledFonts.small }]}>Export/import for cross-platform or offline backup</Text>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Use Manual Backup to export your holdings</Text>
-              <Text style={[styles.privacyItem, { marginTop: 8, color: colors.text, fontSize: scaledFonts.small }]}>• To use on multiple devices:</Text>
-              <Text style={[styles.privacyItem, { paddingLeft: 12, color: colors.text, fontSize: scaledFonts.small }]}>1. Backup from your primary device</Text>
-              <Text style={[styles.privacyItem, { paddingLeft: 12, color: colors.text, fontSize: scaledFonts.small }]}>2. Restore on your secondary device</Text>
-            </>
-          )}
+          <Text style={[styles.privacyItem, { color: colors.text, fontSize: scaledFonts.small }]}>• Cloud Sync (signed in users)</Text>
+          <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.text, fontSize: scaledFonts.small }]}>Sign in with the same account on all devices to sync automatically</Text>
+          <Text style={[styles.privacyItem, { marginTop: 12, color: colors.text, fontSize: scaledFonts.small }]}>• Manual Backup/Restore (all users)</Text>
+          <Text style={[styles.privacyItem, { paddingLeft: 12, marginTop: 4, color: colors.muted, fontSize: scaledFonts.small }]}>Export/import for offline backup or one-time transfers</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>

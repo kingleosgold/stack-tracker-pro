@@ -222,7 +222,7 @@ export default function AccountScreen({
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.muted }]}>
-            Your portfolio data is stored locally on your device.
+            Your data is encrypted and synced securely.{'\n'}We never sell your data to third parties.
           </Text>
         </View>
       </ScrollView>

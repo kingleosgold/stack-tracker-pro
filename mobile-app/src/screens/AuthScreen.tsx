@@ -296,8 +296,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Privacy Note */}
             <View style={styles.privacyNote}>
               <Text style={styles.privacyText}>
-                Your portfolio data stays on your device.{'\n'}
-                Account sync is optional and encrypted.
+                Your data is encrypted and secure.{'\n'}
+                We never sell your data to third parties.
               </Text>
             </View>
           </ScrollView>
