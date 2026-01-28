@@ -764,6 +764,7 @@ function AppContent() {
     spotPrice: '', premium: '0', costBasis: '',
   });
   const [spotPriceSource, setSpotPriceSource] = useState(null); // Tracks data source for spot price warnings
+  const [historicalSpotSuggestion, setHistoricalSpotSuggestion] = useState(null); // Suggested historical spot price for comparison
 
   // Speculation State
   const [specSilverPrice, setSpecSilverPrice] = useState('100');
@@ -3078,11 +3079,33 @@ function AppContent() {
   const handleDateChange = async (date) => {
     setForm(prev => ({ ...prev, datePurchased: date }));
     setSpotPriceSource(null); // Clear previous source while loading
+    setHistoricalSpotSuggestion(null); // Clear previous suggestion
+
     if (date.length === 10) {
       const result = await fetchHistoricalSpot(date, metalTab);
       if (result.price) {
-        setForm(prev => ({ ...prev, spotPrice: result.price.toString() }));
-        setSpotPriceSource(result.source);
+        const currentSpotPrice = parseFloat(form.spotPrice) || 0;
+
+        // Store the historical price as a suggestion for comparison
+        setHistoricalSpotSuggestion({
+          price: result.price,
+          source: result.source,
+          date: date,
+        });
+
+        // Only auto-fill if user hasn't entered a value yet (empty or 0)
+        if (currentSpotPrice === 0) {
+          setForm(prev => ({ ...prev, spotPrice: result.price.toString() }));
+          setSpotPriceSource(result.source);
+        } else {
+          // User has a value - check if it differs significantly (>10%)
+          const difference = Math.abs(currentSpotPrice - result.price);
+          const percentDiff = (difference / result.price) * 100;
+          if (percentDiff > 10) {
+            // Keep user's value but show the source for the suggestion warning
+            setSpotPriceSource('user_differs');
+          }
+        }
 
         // Log daily range info if available (for debugging)
         if (__DEV__ && result.dailyRange) {
@@ -3988,6 +4011,7 @@ function AppContent() {
     });
     setEditingItem(null);
     setSpotPriceSource(null);
+    setHistoricalSpotSuggestion(null);
   };
 
   const deleteItem = (id, metal) => {
@@ -4083,7 +4107,7 @@ function AppContent() {
     }
   };
 
-  const editItem = (item, metal) => {
+  const editItem = async (item, metal) => {
     setMetalTab(metal);
     // Calculate default cost basis if not set
     const defaultCostBasis = (item.unitPrice * item.quantity) + item.taxes + item.shipping;
@@ -4096,7 +4120,37 @@ function AppContent() {
     });
     setEditingItem(item);
     setSpotPriceSource(null); // Clear source warning when editing existing item
+    setHistoricalSpotSuggestion(null); // Clear any previous suggestion
     setShowAddModal(true);
+
+    // Auto-fetch historical spot price if spotPrice is 0 or empty AND date is present
+    const spotPrice = item.spotPrice || 0;
+    const hasDate = item.datePurchased && item.datePurchased.length === 10;
+
+    if (hasDate) {
+      const result = await fetchHistoricalSpot(item.datePurchased, metal);
+      if (result.price) {
+        // Store suggestion for comparison
+        setHistoricalSpotSuggestion({
+          price: result.price,
+          source: result.source,
+          date: item.datePurchased,
+        });
+
+        if (spotPrice === 0) {
+          // Auto-fill if no spot price recorded
+          setForm(prev => ({ ...prev, spotPrice: result.price.toString() }));
+          setSpotPriceSource(result.source);
+        } else {
+          // Check if existing value differs significantly
+          const difference = Math.abs(spotPrice - result.price);
+          const percentDiff = (difference / result.price) * 100;
+          if (percentDiff > 10) {
+            setSpotPriceSource('user_differs');
+          }
+        }
+      }
+    }
   };
 
   const exportCSV = async () => {
@@ -6303,6 +6357,37 @@ function AppContent() {
                       ⚠️ Historical price unavailable - using today's spot. You can edit this manually.
                     </Text>
                   )}
+
+                  {/* Warning when user's spot price differs significantly from historical */}
+                  {spotPriceSource === 'user_differs' && historicalSpotSuggestion && (() => {
+                    const userSpot = parseFloat(form.spotPrice) || 0;
+                    const histSpot = historicalSpotSuggestion.price;
+                    const diff = Math.abs(userSpot - histSpot);
+                    const pctDiff = (diff / histSpot) * 100;
+                    return (
+                      <View style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', padding: 10, borderRadius: 8, marginTop: -4, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(251, 191, 36, 0.3)' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#E69500', fontSize: scaledFonts.small, fontWeight: '600' }}>
+                              ⚠️ Your price differs by {pctDiff.toFixed(0)}%
+                            </Text>
+                            <Text style={{ color: colors.muted, fontSize: scaledFonts.tiny, marginTop: 2 }}>
+                              Historical spot was ${formatCurrency(histSpot)} on {historicalSpotSuggestion.date}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setForm(prev => ({ ...prev, spotPrice: histSpot.toString() }));
+                              setSpotPriceSource(historicalSpotSuggestion.source);
+                            }}
+                            style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(251, 191, 36, 0.3)', borderRadius: 6, marginLeft: 8 }}
+                          >
+                            <Text style={{ color: '#E69500', fontSize: scaledFonts.tiny, fontWeight: '600' }}>Use ${formatCurrency(histSpot)}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <View style={{ flex: 1 }}><FloatingInput label="Taxes" value={form.taxes} onChangeText={v => setForm(p => ({ ...p, taxes: v }))} placeholder="0" keyboardType="decimal-pad" prefix="$" colors={colors} isDarkMode={isDarkMode} scaledFonts={scaledFonts} /></View>
