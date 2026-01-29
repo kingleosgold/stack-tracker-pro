@@ -730,7 +730,7 @@ function AppContent() {
   // Format: { silverOzt, goldOzt, silverSpot, goldSpot, date, timestamp }
 
   // Entitlements
-  const [hasGold, setHasGold] = useState(__DEV__ ? true : false); // DEV: bypasses Gold check
+  const [hasGold, setHasGold] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true); // Don't show upgrade prompts until loaded
 
   // Server-side scan tracking
@@ -1825,12 +1825,7 @@ function AppContent() {
       if (__DEV__) console.log('📋 RevenueCat User ID:', userId);
       if (__DEV__) console.log('🏆 Has Gold:', isGold, 'Has Lifetime:', isLifetime);
 
-      if (__DEV__) {
-        // In dev mode, keep hasGold true regardless of RevenueCat
-        setHasGold(true);
-      } else {
-        setHasGold(isGold);
-      }
+      setHasGold(isGold);
       setHasLifetimeAccess(isLifetime);
       setRevenueCatUserId(userId);
 
@@ -5691,13 +5686,6 @@ function AppContent() {
 
           return (
             <View style={{ flex: 1, backgroundColor: settingsBg, marginHorizontal: -20, marginTop: -20, paddingHorizontal: 16, paddingTop: 8 }}>
-              {/* DEV MODE indicator */}
-              {__DEV__ && (
-                <View style={{ backgroundColor: '#EF4444', borderRadius: 8, padding: 10, marginBottom: 8, alignItems: 'center' }}>
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>DEV MODE — Gold features unlocked</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 2 }}>Remove __DEV__ bypass before production build</Text>
-                </View>
-              )}
               {/* Account Section */}
               <SectionHeader title="Account" />
               <View style={{ borderRadius: 10, overflow: 'hidden' }}>
